@@ -467,7 +467,11 @@
     document.body.classList.toggle("view-list", isList);
     document.body.classList.toggle("view-card", !isList);
     grid.hidden = isList;
-    if (listWrap) listWrap.hidden = !isList;
+    grid.setAttribute("aria-hidden", isList ? "true" : "false");
+    if (listWrap) {
+      listWrap.hidden = !isList;
+      listWrap.setAttribute("aria-hidden", isList ? "false" : "true");
+    }
     if (viewToggle) {
       viewToggle.querySelectorAll("[data-view]").forEach((btn) => {
         const on = btn.getAttribute("data-view") === viewMode;

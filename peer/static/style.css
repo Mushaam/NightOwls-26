@@ -310,6 +310,23 @@ img {
   gap: 1.1rem;
 }
 
+/* One browse view at a time — .grid { display:grid } would otherwise beat [hidden] */
+[hidden] {
+  display: none !important;
+}
+
+body.view-list #file-grid {
+  display: none !important;
+}
+
+body.view-card #file-list-wrap {
+  display: none !important;
+}
+
+body.view-list #file-list-wrap {
+  display: block;
+}
+
 .file-list-wrap {
   width: 100%;
   overflow-x: auto;
