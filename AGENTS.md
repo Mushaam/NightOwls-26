@@ -31,7 +31,8 @@ Educational **BitTorrent-style LAN file sharer** for a college network: one cent
 **NEXT:** final demo polish only — verify/extend seed + multi-peer launcher (`scripts/run.sh --seed` exists); no new architecture. Pause for human review after changes.
 
 **Recent UX:** browse **card/list views** + schema-driven **sort** (`peer/static/file-catalog.js`).  
-**Tracker portal:** bare admin UI at `http://<tracker>/portal` — inventory + audit + CSV export.
+**Tracker portal:** bare admin UI at `http://<tracker>/portal` — inventory + audit + CSV export.  
+**Peer file manager:** `/library` — local `library.db`, startup SHA-256 verify, zombie clear, View/Copy.
 
 **Branch:** `step7` (tracks build step naming; Steps 1–7 complete).
 
@@ -94,10 +95,11 @@ NightOwls-26/
 │   ├── templates/         portal_*.html
 │   └── static/portal.css  bare admin styles
 └── peer/
-    ├── app.py             UI + /chunk + /api/* + /progress + DOWNLOADS{}
+    ├── app.py             UI + /chunk + /api/* + /progress + /library + DOWNLOADS{}
     ├── swarm.py           upload_file / download_file (+ CLI)
     ├── store.py           ChunkStore disk layout
-    ├── templates/         index | upload | download
+    ├── inventory.py       LocalInventory — library.db + verify/zombies
+    ├── templates/         index | upload | download | library
     └── static/            style.css | script.js | file-catalog.js
 ```
 
@@ -112,6 +114,7 @@ Helpers: `./server` `./client` (or `.bat`) wrap common launches.
   chunks/<file_id>/<chunk_index>.bin
   complete/<file_id>/<filename>     # verified whole file only
   meta/<file_id>.json
+  library.db                        # local file manager inventory
   _uploads/                         # temp multipart
 ```
 
@@ -155,11 +158,15 @@ Env: `PEER_PORT=6001` `PEER_IP=127.0.0.1` `PEER_HOST=0.0.0.0` `PEER_DATA_DIR=pee
 |--------|------|------|
 | GET | `/health` | diagnostics |
 | GET | `/chunk/<fid>/<i>` | bytes; rejects size/hash mismatch |
-| GET | `/` `/upload` `/download/<fid>` | UI |
+| GET | `/` `/upload` `/download/<fid>` `/library` | UI (Files = local manager) |
 | GET | `/api/files` | JSON catalog |
-| POST | `/api/upload` | multipart `file` → `upload_file` |
+| POST | `/api/upload` | multipart `file` → `upload_file` → library register |
 | POST | `/api/download/<fid>` | start bg thread; 202; idempotent if active |
 | GET | `/progress/<fid>` | poll contract (below) |
+| POST | `/api/library/verify` | re-check all local files (size + SHA-256) |
+| POST | `/api/library/clear-zombies` | drop missing/corrupt DB rows + leftover complete/meta |
+| GET | `/api/library/<fid>/copy` | Save-As download (`Content-Disposition: attachment`) |
+| POST | `/api/library/<fid>/open` | OS default open (`xdg-open` / `open` / `startfile`) |
 
 CLI: `python -m peer.swarm upload --path F --data-dir D --peer-port P` · `… download --file-id N …`
 
@@ -189,12 +196,14 @@ CLI: `python -m peer.swarm upload --path F --data-dir D --peer-port P` · `… d
 
 **`peer.store.ChunkStore`:** `save_chunk` `load_chunk` `has_chunk(..., expected_hash=, expected_size=)` `delete_chunk` `clear_incomplete` `is_verified_complete` `load_meta` · dirs under `data_dir`
 
+**`peer.inventory.LocalInventory`:** SQLite `library.db` · `register` · `verify_all` (startup + manual) · `clear_zombies` · `resolve_path` · statuses `ok|missing|corrupt`
+
 **`peer.swarm`:**  
 - `upload_file(source, tracker_url, store, peer_ip, peer_port, filename=)`  
 - `download_file(..., on_progress=callable|None, refresh_peers=True)` — emits progress dicts; raises `DownloadError` if missing chunks  
 - Progress statuses: `starting` `skip_existing` `chunk_ok` `no_peers` `chunk_failed` `complete`
 
-**`peer.app.create_app(...)`:** builds store, registers with tracker (unless `register=False`), sets config keys.
+**`peer.app.create_app(...)`:** builds store + inventory, **`verify_all()` on startup**, registers with tracker (unless `register=False`), sets config keys.
 
 **`tracker.models`:** `init_db` `register_peer` `upload_metadata` `list_files` `get_file` `peers_for_file` `peer_has_chunk` `log_audit` `list_audit` `list_peers` `portal_stats` `rename_file` `delete_file`
 
@@ -211,7 +220,8 @@ CLI: `python -m peer.swarm upload --path F --data-dir D --peer-port P` · `… d
 - Search: ranks by name/prefix/tokens/id/ext/hash; IME-safe `input`; `/` focuses, Esc clears; match highlight
 - Upload: drag-drop → `POST /api/upload`
 - Download page: **auto-starts** unless already complete; button = start/retry; poll 1s; peer-count bump CSS (`.live-counter.bump`); `.status.warn` for peer failures
-- Files: `peer/templates/index.html` `peer/static/file-catalog.js` `script.js` `style.css`
+- **Files (`/library`):** local downloads/seeds; zombie rows (`.is-zombie`, `missing`/`corrupt` badges); **View** = OS open; **Copy** = browser Save-As; Re-verify + Clear zombies
+- Files: `peer/templates/index.html` `library.html` `peer/static/file-catalog.js` `script.js` `style.css` · `peer/inventory.py`
 
 ---
 

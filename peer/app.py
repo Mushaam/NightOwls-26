@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 import threading
 import urllib.error
 import urllib.request
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request, send_file
 from werkzeug.utils import secure_filename
 
+from peer.inventory import LocalInventory
 from peer.store import ChunkStore
 from peer.swarm import DownloadError, UploadError, download_file, upload_file
 from shared.utils import CHUNK_SIZE, verify_chunk
@@ -37,6 +40,35 @@ def _format_size(num: int) -> str:
     return f"{num} B"
 
 
+def _open_with_os(path: Path) -> None:
+    """Open a local file with the OS default handler (like double-click)."""
+    path = path.resolve()
+    if sys.platform.startswith("darwin"):
+        subprocess.Popen(["open", str(path)], start_new_session=True)
+    elif sys.platform.startswith("win"):
+        os.startfile(str(path))  # type: ignore[attr-defined]
+    else:
+        subprocess.Popen(["xdg-open", str(path)], start_new_session=True)
+
+
+def _register_library(result: dict, *, source: str) -> None:
+    inventory: LocalInventory | None = app.config.get("INVENTORY")
+    if not inventory or not result:
+        return
+    path = result.get("path")
+    file_id = result.get("file_id") or result.get("id")
+    if path is None or file_id is None:
+        return
+    inventory.register(
+        file_id=int(file_id),
+        filename=str(result.get("filename") or Path(path).name),
+        file_hash=str(result.get("file_hash") or ""),
+        file_size=int(result.get("file_size") or 0),
+        path=path,
+        source=source,
+    )
+
+
 def create_app(
     data_dir: str | Path | None = None,
     tracker_url: str | None = None,
@@ -50,12 +82,22 @@ def create_app(
     port = int(peer_port if peer_port is not None else _env("PEER_PORT", "6001"))
 
     store = ChunkStore(data)
+    inventory = LocalInventory(data, store)
+    verify_summary = inventory.verify_all()
+    print(
+        "[peer] library verify: "
+        f"checked={verify_summary['checked']} ok={verify_summary['ok']} "
+        f"missing={verify_summary['missing']} corrupt={verify_summary['corrupt']}"
+    )
+
     app.config.update(
         DATA_DIR=data,
         TRACKER_URL=tracker,
         PEER_IP=ip,
         PEER_PORT=port,
         STORE=store,
+        INVENTORY=inventory,
+        LIBRARY_VERIFY=verify_summary,
         DOWNLOADS={},
         UPLOAD_TMP=data / "_uploads",
     )
@@ -229,6 +271,7 @@ def api_upload():
             peer_port=app.config["PEER_PORT"],
             filename=uploaded.filename,
         )
+        _register_library(result, source="seed")
     except UploadError as exc:
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:  # noqa: BLE001
@@ -311,6 +354,7 @@ def _run_download(file_id: int) -> None:
             peer_port=app.config["PEER_PORT"],
             on_progress=on_progress,
         )
+        _register_library(result, source="download")
         _set_progress(
             file_id,
             status="complete",
@@ -426,6 +470,80 @@ def progress(file_id: int):
             "downloads_dir": str(data_dir / "complete"),
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Local file manager (library)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/library")
+def library_page():
+    inventory: LocalInventory = app.config["INVENTORY"]
+    # Light refresh of statuses for the dashboard (full hash check).
+    summary = inventory.verify_all()
+    app.config["LIBRARY_VERIFY"] = summary
+    entries = []
+    for e in inventory.list_files():
+        item = dict(e)
+        item["size_label"] = _format_size(int(item.get("file_size") or 0))
+        item["is_zombie"] = item.get("status") in {"missing", "corrupt"}
+        entries.append(item)
+    data_dir = Path(app.config["DATA_DIR"])
+    return render_template(
+        "library.html",
+        entries=entries,
+        summary=summary,
+        downloads_dir=str((data_dir / "complete").resolve()),
+        zombie_count=summary.get("zombies", 0),
+    )
+
+
+@app.post("/api/library/verify")
+def api_library_verify():
+    inventory: LocalInventory = app.config["INVENTORY"]
+    summary = inventory.verify_all()
+    app.config["LIBRARY_VERIFY"] = summary
+    return jsonify(summary)
+
+
+@app.post("/api/library/clear-zombies")
+def api_library_clear_zombies():
+    inventory: LocalInventory = app.config["INVENTORY"]
+    summary = inventory.clear_zombies()
+    app.config["LIBRARY_VERIFY"] = summary
+    return jsonify(summary)
+
+
+@app.get("/api/library/<int:file_id>/copy")
+def api_library_copy(file_id: int):
+    """Save-As style download of a verified local file."""
+    inventory: LocalInventory = app.config["INVENTORY"]
+    entry = inventory.get(file_id)
+    path = inventory.resolve_path(file_id)
+    if not entry or path is None:
+        return jsonify({"error": "File unavailable (missing or corrupt)"}), 404
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name=entry.get("filename") or path.name,
+        mimetype="application/octet-stream",
+        conditional=True,
+    )
+
+
+@app.post("/api/library/<int:file_id>/open")
+def api_library_open(file_id: int):
+    """Open the file with the OS default app on this peer machine."""
+    inventory: LocalInventory = app.config["INVENTORY"]
+    path = inventory.resolve_path(file_id)
+    if path is None:
+        return jsonify({"error": "File unavailable (missing or corrupt)"}), 404
+    try:
+        _open_with_os(path)
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": f"Could not open file: {exc}"}), 500
+    return jsonify({"status": "opened", "path": str(path)})
 
 
 if __name__ == "__main__":

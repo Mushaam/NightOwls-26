@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NightOwls — Files</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="{{ url_for('home') }}">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-name">NightOwls</span>
+        </a>
+        <nav class="nav">
+          <a href="{{ url_for('home') }}">Browse</a>
+          <a href="{{ url_for('upload_page') }}">Upload</a>
+          <a class="active" href="{{ url_for('library_page') }}">Files</a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <h1>File manager</h1>
+        <p>
+          Local library under <code>{{ downloads_dir }}</code>. Verified on every peer start.
+          Missing or corrupt entries show as zombies until you clear them.
+        </p>
+      </section>
+
+      <section class="panel library-panel">
+        <div class="library-toolbar">
+          <div class="library-stats" id="library-stats">
+            {{ summary.ok }} ok · {{ summary.missing }} missing · {{ summary.corrupt }} corrupt
+            {% if summary.verified_at %}
+            <span class="dot">•</span>
+            checked {{ summary.verified_at }} UTC
+            {% endif %}
+          </div>
+          <div class="library-actions">
+            <button type="button" class="btn btn-ghost" id="library-verify">Re-verify</button>
+            <button
+              type="button"
+              class="btn btn-ghost"
+              id="library-clear-zombies"
+              {% if zombie_count == 0 %}disabled{% endif %}
+            >
+              Clear zombies ({{ zombie_count }})
+            </button>
+          </div>
+        </div>
+        <div class="status" id="library-status" hidden></div>
+
+        {% if entries %}
+        <div class="library-table-wrap">
+          <table class="library-table" id="library-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Name</th>
+                <th>Size</th>
+                <th>Source</th>
+                <th>Verified</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in entries %}
+              <tr
+                class="library-row status-{{ e.status }}{% if e.is_zombie %} is-zombie{% endif %}"
+                data-file-id="{{ e.file_id }}"
+              >
+                <td>
+                  <span class="badge badge-{{ e.status }}">{{ e.status }}</span>
+                  {% if e.note %}
+                  <div class="zombie-note">{{ e.note }}</div>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="lib-name">{{ e.filename }}</div>
+                  <div class="lib-meta mono">#{{ e.file_id }} · {{ (e.file_hash or '')[:12] }}{% if e.file_hash %}…{% endif %}</div>
+                </td>
+                <td class="mono">{{ e.size_label }}</td>
+                <td>{{ e.source }}</td>
+                <td class="mono">{{ e.verified_at or "—" }}</td>
+                <td class="lib-ops">
+                  {% if e.status == "ok" %}
+                  <button type="button" class="btn btn-ghost btn-compact lib-open" data-id="{{ e.file_id }}">
+                    View
+                  </button>
+                  <a
+                    class="btn btn-primary btn-compact"
+                    href="{{ url_for('api_library_copy', file_id=e.file_id) }}"
+                    download
+                    >Copy</a
+                  >
+                  {% else %}
+                  <span class="muted">Unavailable</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty">
+          <p>No local files yet.</p>
+          <p><a class="btn btn-primary" href="{{ url_for('home') }}">Browse the swarm</a></p>
+        </div>
+        {% endif %}
+      </section>
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+  </body>
+</html>

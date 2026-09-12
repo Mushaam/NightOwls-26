@@ -287,4 +287,66 @@
     startDownload();
   })();
   }
+
+  /* ---- Library / file manager ---- */
+  const libraryVerify = $("#library-verify");
+  const libraryClear = $("#library-clear-zombies");
+  const libraryStatus = $("#library-status");
+  if (libraryVerify || libraryClear) {
+    async function postLibrary(url, okMessage) {
+      setStatus(libraryStatus, "Working…");
+      if (libraryStatus) libraryStatus.hidden = false;
+      try {
+        const res = await fetch(url, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Request failed");
+        setStatus(
+          libraryStatus,
+          okMessage(data),
+          data.zombies ? "warn" : "ok"
+        );
+        // Refresh so zombie styling / buttons match DB.
+        window.setTimeout(() => window.location.reload(), 600);
+      } catch (err) {
+        setStatus(libraryStatus, err.message || String(err), "err");
+      }
+    }
+
+    if (libraryVerify) {
+      libraryVerify.addEventListener("click", () => {
+        postLibrary(
+          "/api/library/verify",
+          (d) =>
+            `Verified ${d.checked} file(s): ${d.ok} ok, ${d.missing} missing, ${d.corrupt} corrupt.`
+        );
+      });
+    }
+    if (libraryClear) {
+      libraryClear.addEventListener("click", () => {
+        if (!window.confirm("Remove all missing/corrupt library entries and leftover files?")) {
+          return;
+        }
+        postLibrary(
+          "/api/library/clear-zombies",
+          (d) => `Cleared ${d.cleared_count || 0} zombie(s). Library re-validated.`
+        );
+      });
+    }
+
+    document.querySelectorAll(".lib-open").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-id");
+        setStatus(libraryStatus, "Opening with system viewer…");
+        if (libraryStatus) libraryStatus.hidden = false;
+        try {
+          const res = await fetch(`/api/library/${id}/open`, { method: "POST" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Open failed");
+          setStatus(libraryStatus, `Opened ${data.path}`, "ok");
+        } catch (err) {
+          setStatus(libraryStatus, err.message || String(err), "err");
+        }
+      });
+    });
+  }
 })();

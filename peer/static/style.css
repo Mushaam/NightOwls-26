@@ -751,6 +751,152 @@ body.view-list #file-list-wrap {
   color: var(--accent-hover);
 }
 
+/* ---- Local file manager ---- */
+.library-panel {
+  padding-top: 1.1rem;
+}
+
+.library-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.library-stats {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.library-stats .dot {
+  margin: 0 0.35rem;
+  opacity: 0.5;
+}
+
+.library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.library-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #121212;
+}
+
+.library-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.library-table th,
+.library-table td {
+  padding: 0.75rem 0.9rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.library-table thead th {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.library-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.library-row.is-zombie {
+  background: rgba(239, 68, 68, 0.08);
+  opacity: 0.92;
+}
+
+.library-row.is-zombie .lib-name {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.library-row.status-corrupt {
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.library-row.status-missing {
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.badge-ok {
+  color: var(--success);
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.badge-missing {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.badge-corrupt {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.zombie-note {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  max-width: 16rem;
+}
+
+.lib-name {
+  font-weight: 600;
+}
+
+.lib-meta {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.lib-ops {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.lib-ops .btn {
+  margin-left: 0.35rem;
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
 @media (max-width: 640px) {
   .shell {
     width: min(100% - 1.25rem, 1100px);
@@ -759,5 +905,10 @@ body.view-list #file-list-wrap {
   .topbar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .library-actions {
+    margin-left: 0;
+    width: 100%;
   }
 }
