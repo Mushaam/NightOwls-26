@@ -55,7 +55,11 @@
             </button>
           </div>
         </div>
-        <div class="status" id="library-status" hidden></div>
+        <div class="status" id="library-status" {% if not focus_id %}hidden{% endif %}>
+          {% if focus_id %}
+          Already in your library — showing file #{{ focus_id }}.
+          {% endif %}
+        </div>
 
         {% if entries %}
         <div class="library-table-wrap">
@@ -73,7 +77,8 @@
             <tbody>
               {% for e in entries %}
               <tr
-                class="library-row status-{{ e.status }}{% if e.is_zombie %} is-zombie{% endif %}"
+                id="lib-{{ e.file_id }}"
+                class="library-row status-{{ e.status }}{% if e.is_zombie %} is-zombie{% endif %}{% if e.is_focus %} is-focus{% endif %}"
                 data-file-id="{{ e.file_id }}"
               >
                 <td>

@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, render_template, request, send_file
+from flask import Flask, Response, jsonify, redirect, render_template, request, send_file
 from werkzeug.utils import secure_filename
 
 from peer.inventory import LocalInventory
@@ -67,6 +67,59 @@ def _register_library(result: dict, *, source: str) -> None:
         path=path,
         source=source,
     )
+
+
+def _owned_library_entry(
+    file_id: int, *, file_hash: str | None = None
+) -> dict | None:
+    """
+    Return a healthy library row if this peer already has the file.
+    Matches by file_id, or by SHA-256 when the tracker hash is known.
+    """
+    inventory: LocalInventory | None = app.config.get("INVENTORY")
+    store: ChunkStore | None = app.config.get("STORE")
+    if not inventory:
+        return None
+
+    def _ok(entry: dict | None) -> dict | None:
+        if not entry or entry.get("status") != "ok":
+            return None
+        if inventory.resolve_path(int(entry["file_id"])) is None:
+            return None
+        return entry
+
+    hit = _ok(inventory.get(file_id))
+    if hit:
+        return hit
+
+    # Disk has a verified complete/ but library row missing — register then own.
+    if store and store.is_verified_complete(file_id, expected_file_hash=file_hash):
+        meta = store.load_meta(file_id) or {}
+        complete = store._complete_path(file_id)
+        if complete is not None:
+            inventory.register(
+                file_id=file_id,
+                filename=str(meta.get("filename") or complete.name),
+                file_hash=str(meta.get("file_hash") or file_hash or ""),
+                file_size=int(meta.get("file_size") or complete.stat().st_size),
+                path=complete,
+                source="download",
+            )
+            hit = _ok(inventory.get(file_id))
+            if hit:
+                return hit
+
+    if file_hash:
+        for entry in inventory.list_files():
+            if entry.get("file_hash") == file_hash:
+                hit = _ok(entry)
+                if hit:
+                    return hit
+    return None
+
+
+def _library_focus_url(file_id: int) -> str:
+    return f"/library?focus={int(file_id)}"
 
 
 def create_app(
@@ -214,13 +267,23 @@ def download_page(file_id: int):
     filename = f"File #{file_id}"
     size_label = "—"
     seeder_count = 0
+    file_hash = None
     try:
         meta = _tracker_json(f"/files/{file_id}")
         filename = meta.get("filename") or filename
         size_label = _format_size(int(meta.get("file_size") or 0))
         seeder_count = int(meta.get("seeder_count") or 0)
+        file_hash = meta.get("file_hash")
     except Exception:  # noqa: BLE001
         pass
+
+    # Already have a healthy local copy → jump to that library record.
+    force = request.args.get("force") in {"1", "true", "yes"}
+    if not force:
+        owned = _owned_library_entry(file_id, file_hash=file_hash)
+        if owned:
+            return redirect(_library_focus_url(int(owned["file_id"])))
+
     data_dir = Path(app.config["DATA_DIR"])
     complete_dir = (data_dir / "complete" / str(file_id)).resolve()
     expected_path = complete_dir / filename
@@ -376,6 +439,28 @@ def api_download(file_id: int):
     if existing.get("status") in _ACTIVE_DOWNLOAD:
         return jsonify({"status": "already_running", "file_id": file_id}), 202
 
+    file_hash = None
+    try:
+        meta = _tracker_json(f"/files/{file_id}")
+        file_hash = meta.get("file_hash")
+    except Exception:  # noqa: BLE001
+        pass
+    owned = _owned_library_entry(file_id, file_hash=file_hash)
+    if owned:
+        focus_id = int(owned["file_id"])
+        return (
+            jsonify(
+                {
+                    "status": "already_have",
+                    "file_id": focus_id,
+                    "filename": owned.get("filename"),
+                    "redirect": _library_focus_url(focus_id),
+                    "message": "File already in your library.",
+                }
+            ),
+            200,
+        )
+
     _set_progress(
         file_id,
         status="starting",
@@ -483,11 +568,13 @@ def library_page():
     # Light refresh of statuses for the dashboard (full hash check).
     summary = inventory.verify_all()
     app.config["LIBRARY_VERIFY"] = summary
+    focus_id = request.args.get("focus", type=int)
     entries = []
     for e in inventory.list_files():
         item = dict(e)
         item["size_label"] = _format_size(int(item.get("file_size") or 0))
         item["is_zombie"] = item.get("status") in {"missing", "corrupt"}
+        item["is_focus"] = focus_id is not None and int(item["file_id"]) == focus_id
         entries.append(item)
     data_dir = Path(app.config["DATA_DIR"])
     return render_template(
@@ -496,6 +583,7 @@ def library_page():
         summary=summary,
         downloads_dir=str((data_dir / "complete").resolve()),
         zombie_count=summary.get("zombies", 0),
+        focus_id=focus_id,
     )
 
 

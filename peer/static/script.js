@@ -259,6 +259,10 @@
       const res = await fetch(`/api/download/${fileId}`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not start download");
+      if (data.status === "already_have" && data.redirect) {
+        window.location.href = data.redirect;
+        return;
+      }
       startPoll();
     } catch (err) {
       downloadActive = false;
@@ -292,6 +296,14 @@
   const libraryVerify = $("#library-verify");
   const libraryClear = $("#library-clear-zombies");
   const libraryStatus = $("#library-status");
+  const focusRow = document.querySelector(".library-row.is-focus");
+  if (focusRow) {
+    if (libraryStatus) {
+      libraryStatus.hidden = false;
+      libraryStatus.classList.add("ok");
+    }
+    focusRow.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
   if (libraryVerify || libraryClear) {
     async function postLibrary(url, okMessage) {
       setStatus(libraryStatus, "Working…");

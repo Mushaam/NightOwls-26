@@ -221,6 +221,7 @@ CLI: `python -m peer.swarm upload --path F --data-dir D --peer-port P` · `… d
 - Upload: drag-drop → `POST /api/upload`
 - Download page: **auto-starts** unless already complete; button = start/retry; poll 1s; peer-count bump CSS (`.live-counter.bump`); `.status.warn` for peer failures
 - **Files (`/library`):** local downloads/seeds; zombie rows (`.is-zombie`, `missing`/`corrupt` badges); **View** = OS open; **Copy** = browser Save-As; Re-verify + Clear zombies
+- **Already-have download:** `GET /download/<id>` (and `POST /api/download/<id>`) check local library by file_id or SHA-256; if healthy copy exists → redirect `/library?focus=<id>` (use `?force=1` to bypass)
 - Files: `peer/templates/index.html` `library.html` `peer/static/file-catalog.js` `script.js` `style.css` · `peer/inventory.py`
 
 ---
