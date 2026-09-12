@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Plug-and-play tracker. From the project root: ./server
+exec "$(cd "$(dirname "$0")" && pwd)/scripts/start_server.sh" "$@"

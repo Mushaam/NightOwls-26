@@ -57,7 +57,9 @@ Ports used by default:
 
 ## 3. Install
 
-From the project root:
+No separate install step is required for the plug-and-play launchers — they create `.venv` and install Flask on first run.
+
+Optional manual setup:
 
 ```bash
 cd NightOwls-26
@@ -65,16 +67,33 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
-Or skip manual setup and use the run script (it creates `.venv` and installs Flask if needed):
+---
+
+## 3b. Plug and play (server + client)
+
+**Machine A — tracker:**
 
 ```bash
-chmod +x scripts/run.sh
-./scripts/run.sh
+./server
 ```
+
+Copy the printed **Share this:** URL (e.g. `http://192.168.1.10:5000`).
+
+**Same machine or Machine B — peer UI:**
+
+```bash
+./client
+# or, pointing at a remote tracker:
+./client http://192.168.1.10:5000
+```
+
+Open the printed peer UI URL (usually http://127.0.0.1:6001/). Upload on one peer, browse/download on another.
+
+Windows: `server.bat` / `client.bat`.
 
 ---
 
-## 4. Start everything at once
+## 4. Start everything at once (local multi-peer demo)
 
 ```bash
 ./scripts/run.sh

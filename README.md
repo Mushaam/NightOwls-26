@@ -11,15 +11,39 @@ Students seed files from their machines; others download verified 256 KB chunks 
 - **Web UI** — browse, drag-and-drop upload, live download progress
 - **CLI** — upload/download without the browser
 
-## Quick start
+## Plug and play
+
+From the project root (creates `.venv` and installs Flask automatically):
 
 ```bash
-cd NightOwls-26
-chmod +x scripts/run.sh
-./scripts/run.sh
+# Terminal 1 — tracker
+./server
+
+# Terminal 2 — peer (open the printed UI URL)
+./client
 ```
 
-This starts:
+On another machine on the same LAN / Tailscale:
+
+```bash
+./client http://<tracker-ip>:5000
+```
+
+| Command | What it starts |
+|---------|----------------|
+| `./server` | Tracker on port **5000** (prints the URL to share) |
+| `./client` | Peer UI on port **6001** (defaults to local tracker) |
+| `./client http://IP:5000` | Peer pointed at a remote tracker |
+
+Windows: `server.bat` / `client.bat` (same arguments).
+
+### Local multi-peer demo
+
+```bash
+./scripts/run.sh --seed
+```
+
+Starts tracker + 3 peers with demo files. Press `Ctrl+C` to stop all.
 
 | Service | URL |
 |---------|-----|
@@ -28,62 +52,26 @@ This starts:
 | Peer 2 UI | http://127.0.0.1:6002 |
 | Peer 3 UI | http://127.0.0.1:6003 |
 
-Open a peer URL → **Upload** a file on one peer → **Browse / Download** on another.
-
-Press `Ctrl+C` in the terminal to stop everything.
-
-### Options
-
-```bash
-./scripts/run.sh              # start tracker + 3 peers
-./scripts/run.sh --seed       # also plant 2 demo files on peer 1
-./scripts/run.sh --peers 2    # tracker + 2 peers only
-./scripts/run.sh --help
-```
-
 ## Requirements
 
 - Python 3.10+
 - Flask (`requirements.txt`)
 
-A local `.venv` is created automatically by `scripts/run.sh` if missing.
-
 ## Documentation
 
 - **[USER_MANUAL.md](USER_MANUAL.md)** — full guide (install, UI, CLI, LAN demo, troubleshooting, API)
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — system diagrams and flows
 - **[HANDOFF.md](HANDOFF.md)** — build progress / developer handoff notes
 
 ## Project layout
 
 ```
-tracker/     Flask tracker + SQLite
-peer/        Peer node (chunk server, swarm client, UI)
-shared/      SHA-256 chunking helpers
-scripts/     run.sh, seed helpers
+server / client   Plug-and-play launchers (root)
+tracker/          Flask tracker + SQLite
+peer/             Peer node (chunk server, swarm client, UI)
+shared/           SHA-256 chunking helpers
+scripts/          run.sh, start_server, start_client, seed helpers
 ```
-
-## Manual start (without the script)
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-
-# Terminal 1 — tracker
-TRACKER_DB=/tmp/nightowls_tracker.db \
-  .venv/bin/python -c "
-from tracker.app import create_app, app
-create_app()
-app.run(host='127.0.0.1', port=5000, debug=False, use_reloader=False)
-"
-
-# Terminal 2 — peer
-PEER_DATA_DIR=/tmp/nightowls_peer6001 \
-PEER_PORT=6001 PEER_IP=127.0.0.1 \
-TRACKER_URL=http://127.0.0.1:5000 \
-  .venv/bin/python -m peer.app
-```
-
-Then open http://127.0.0.1:6001/
 
 ## License
 

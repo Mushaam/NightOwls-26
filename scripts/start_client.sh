@@ -1,22 +1,17 @@
 #!/usr/bin/env bash
-# NightOwls — start one peer client on a Tailscale / LAN network.
+# NightOwls — plug-and-play peer client.
 #
 # Usage:
-#   ./scripts/start_client.sh http://100.x.y.z:5000
+#   ./client
+#   ./client http://192.168.1.10:5000
 #   ./scripts/start_client.sh http://100.x.y.z:5000 --port 6001
-#   TRACKER_URL=http://100.x.y.z:5000 ./scripts/start_client.sh
-#
-# Prerequisites:
-#   - Tailscale connected (or set PEER_IP to your reachable LAN IP)
-#   - Tracker already running and reachable at TRACKER_URL
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
-
-PYTHON="${ROOT}/.venv/bin/python"
-PIP="${ROOT}/.venv/bin/pip"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib.sh
+source "${SCRIPT_DIR}/lib.sh"
+nightowls_root
 
 TRACKER_URL="${TRACKER_URL:-}"
 PEER_PORT="${PEER_PORT:-6001}"
@@ -26,52 +21,37 @@ PEER_DATA_DIR="${PEER_DATA_DIR:-${HOME}/NightOwls-data}"
 
 usage() {
   cat <<EOF
-NightOwls Tailscale / LAN peer client
+NightOwls peer client
 
 Usage: $(basename "$0") [TRACKER_URL] [options]
 
 Arguments:
-  TRACKER_URL           Tracker base URL, e.g. http://100.64.1.2:5000
-                        (or set env TRACKER_URL)
+  TRACKER_URL           Tracker URL (default: http://127.0.0.1:5000)
+                        Example: http://192.168.1.10:5000
 
 Options:
   --port N              Peer listen port (default: 6001)
-  --ip IP               Advertise this IP to the tracker (default: Tailscale IPv4)
-  --data-dir DIR        Local storage for chunks + completed files
-                        (default: ~/NightOwls-data)
+  --ip IP               Advertise this IP to the tracker
+                        (default: Tailscale → LAN → 127.0.0.1)
+  --data-dir DIR        Local storage (default: ~/NightOwls-data)
   -h, --help            Show this help
 
 Environment overrides:
   TRACKER_URL  PEER_PORT  PEER_IP  PEER_HOST  PEER_DATA_DIR
 
 Examples:
-  ./scripts/start_client.sh http://100.64.1.2:5000
-  ./scripts/start_client.sh http://100.64.1.2:5000 --port 6002
-  PEER_IP=100.64.1.9 ./scripts/start_client.sh http://100.64.1.2:5000
+  ./client
+  ./client http://192.168.1.10:5000
+  ./client http://100.64.1.2:5000 --port 6002
 
-Completed downloads appear under:
+Completed downloads:
   <data-dir>/complete/<file_id>/<filename>
 EOF
 }
 
-detect_tailscale_ip() {
-  if command -v tailscale >/dev/null 2>&1; then
-    local ip
-    ip="$(tailscale ip -4 2>/dev/null | head -n1 | tr -d '[:space:]' || true)"
-    if [[ -n "$ip" ]]; then
-      echo "$ip"
-      return 0
-    fi
-  fi
-  return 1
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -h|--help)
-      usage
-      exit 0
-      ;;
+    -h|--help) usage; exit 0 ;;
     --port)
       PEER_PORT="${2:-}"
       [[ -n "$PEER_PORT" ]] || { echo "error: --port needs a value" >&2; exit 1; }
@@ -99,34 +79,19 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$TRACKER_URL" ]]; then
-  echo "error: TRACKER_URL is required (pass it as the first argument)." >&2
-  echo >&2
-  usage >&2
-  exit 1
-fi
-
+TRACKER_URL="${TRACKER_URL:-http://127.0.0.1:5000}"
 TRACKER_URL="${TRACKER_URL%/}"
 
 if [[ -z "$PEER_IP" ]]; then
-  if PEER_IP="$(detect_tailscale_ip)"; then
-    echo "[client] using Tailscale IP: ${PEER_IP}"
+  PEER_IP="$(detect_advertise_ip)"
+  if [[ "$PEER_IP" == "127.0.0.1" ]]; then
+    echo "[client] advertising 127.0.0.1 (localhost only)"
   else
-    echo "error: could not detect Tailscale IP." >&2
-    echo "  Install/connect Tailscale, or pass --ip <your-tailscale-ip>" >&2
-    exit 1
+    echo "[client] advertising IP: ${PEER_IP}"
   fi
 fi
 
-if [[ ! -x "$PYTHON" ]]; then
-  echo "[client] creating virtualenv at .venv ..."
-  python3 -m venv "${ROOT}/.venv"
-fi
-if ! "$PYTHON" -c "import flask" 2>/dev/null; then
-  echo "[client] installing requirements ..."
-  "$PIP" install -r "${ROOT}/requirements.txt"
-fi
-
+ensure_venv "[client]"
 mkdir -p "$PEER_DATA_DIR"
 COMPLETE_DIR="${PEER_DATA_DIR}/complete"
 
