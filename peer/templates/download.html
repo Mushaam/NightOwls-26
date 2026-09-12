@@ -30,7 +30,12 @@
         <p>Fetching verified chunks from peers on the LAN.</p>
       </section>
 
-      <section class="panel" data-file-id="{{ file_id }}">
+      <section
+        class="panel"
+        data-file-id="{{ file_id }}"
+        data-expected-path="{{ expected_path }}"
+        data-downloads-dir="{{ downloads_dir }}"
+      >
         <div class="meta">
           <span id="size-label">{{ size_label }}</span>
           <span class="dot">•</span>
@@ -40,9 +45,18 @@
           >
         </div>
 
+        <div class="save-box" id="save-box">
+          <div class="save-label">Save location</div>
+          <code class="save-path" id="save-path">{{ existing_path or expected_path }}</code>
+          <p class="save-hint">
+            Finished files land in <code>{{ downloads_dir }}</code>
+            under <code>complete/&lt;file_id&gt;/</code>.
+          </p>
+        </div>
+
         <div class="progress-wrap">
           <div class="progress-label">
-            <span id="progress-text">Starting…</span>
+            <span id="progress-text">Ready</span>
             <span id="progress-percent">0%</span>
           </div>
           <div class="progress-track" aria-hidden="true">
@@ -50,7 +64,13 @@
           </div>
         </div>
 
-        <div class="status" id="download-status">Preparing download…</div>
+        <div class="status" id="download-status">
+          {% if existing_path %}
+          Already on disk — open the path above, or download again to refresh.
+          {% else %}
+          Click Start download. When finished, the full file path will show above.
+          {% endif %}
+        </div>
         <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap">
           <button type="button" class="btn btn-primary" id="start-download">Start download</button>
           <a class="btn btn-ghost" href="{{ url_for('home') }}">Back to browse</a>

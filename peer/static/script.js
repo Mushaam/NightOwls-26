@@ -105,6 +105,16 @@
   const peerCountEl = $("#peer-count");
   let pollTimer = null;
 
+  const savePathEl = $("#save-path");
+  const saveBox = $("#save-box");
+  const expectedPath = panel.getAttribute("data-expected-path") || "";
+
+  function showSavePath(path) {
+    if (!savePathEl || !path) return;
+    savePathEl.textContent = path;
+    if (saveBox) saveBox.classList.add("ready");
+  }
+
   function applyProgress(data) {
     const pct = Number(data.percent || 0);
     if (bar) bar.style.width = `${pct}%`;
@@ -115,8 +125,13 @@
     if (peerCountEl && data.peers_known != null) {
       peerCountEl.textContent = String(data.peers_known);
     }
+    if (data.path) {
+      showSavePath(data.path);
+    }
     if (data.status === "complete") {
-      setStatus(statusEl, `Complete — saved to ${data.path || "local store"}`, "ok");
+      const saved = data.path || expectedPath || "local store";
+      showSavePath(saved);
+      setStatus(statusEl, `Complete — file saved to the path above.`, "ok");
       stopPoll();
       startBtn.disabled = false;
       startBtn.textContent = "Download again";

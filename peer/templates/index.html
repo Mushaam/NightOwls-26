@@ -29,6 +29,9 @@
         <h1>Browse the swarm</h1>
         <p>Files available on your college LAN. Pick a card to download from seeders nearby.</p>
         <span class="peer-chip">Peer {{ peer_ip }}:{{ peer_port }}</span>
+        <span class="peer-chip peer-chip-muted" title="Completed downloads folder"
+          >Downloads → {{ downloads_dir }}</span
+        >
       </section>
 
       {% if error %}

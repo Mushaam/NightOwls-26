@@ -137,12 +137,15 @@ def home():
         files = _enrich_files(_tracker_json("/files"))
     except Exception as exc:  # noqa: BLE001
         error = f"Could not reach tracker: {exc}"
+    data_dir = Path(app.config["DATA_DIR"])
     return render_template(
         "index.html",
         files=files,
         error=error,
         peer_ip=app.config["PEER_IP"],
         peer_port=app.config["PEER_PORT"],
+        data_dir=str(data_dir.resolve()),
+        downloads_dir=str((data_dir / "complete").resolve()),
     )
 
 
@@ -163,12 +166,21 @@ def download_page(file_id: int):
         seeder_count = int(meta.get("seeder_count") or 0)
     except Exception:  # noqa: BLE001
         pass
+    data_dir = Path(app.config["DATA_DIR"])
+    complete_dir = (data_dir / "complete" / str(file_id)).resolve()
+    expected_path = complete_dir / filename
+    store: ChunkStore = app.config["STORE"]
+    existing = store._complete_path(file_id)
     return render_template(
         "download.html",
         file_id=file_id,
         filename=filename,
         size_label=size_label,
         seeder_count=seeder_count,
+        data_dir=str(data_dir.resolve()),
+        downloads_dir=str((data_dir / "complete").resolve()),
+        expected_path=str(expected_path),
+        existing_path=str(existing) if existing else None,
     )
 
 
@@ -274,6 +286,7 @@ def api_download(file_id: int):
 def progress(file_id: int):
     """Progress snapshot for UI polling (refined further in Step 7)."""
     store: ChunkStore = app.config["STORE"]
+    data_dir = Path(app.config["DATA_DIR"]).resolve()
     job = dict(app.config["DOWNLOADS"].get(file_id) or {})
 
     chunks_total = int(job.get("chunks_total") or 0)
@@ -294,11 +307,27 @@ def progress(file_id: int):
             if have == chunks_total and job.get("status") not in {"complete", "starting"}:
                 job["status"] = job.get("status") or "complete"
 
+    complete = store._complete_path(file_id)
+    if complete is not None:
+        job["path"] = str(complete.resolve())
+        if job.get("status") in {None, "idle"} and chunks_total and job.get("chunks_have") == chunks_total:
+            job["status"] = "complete"
+            job["percent"] = 100.0
+
+    filename = job.get("filename") or f"file_{file_id}"
     job.setdefault("status", "idle")
     job.setdefault("percent", 0)
     job.setdefault("chunks_have", 0)
     job.setdefault("chunks_total", chunks_total)
     job.setdefault("peers_known", 0)
+    job.setdefault(
+        "path",
+        str((data_dir / "complete" / str(file_id) / filename).resolve())
+        if job.get("status") == "complete"
+        else None,
+    )
+    job["data_dir"] = str(data_dir)
+    job["downloads_dir"] = str(data_dir / "complete")
     job["file_id"] = file_id
     return jsonify(job)
 

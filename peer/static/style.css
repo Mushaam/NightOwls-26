@@ -354,12 +354,67 @@ img {
 .peer-chip {
   display: inline-block;
   margin-top: 0.75rem;
+  margin-right: 0.5rem;
   padding: 0.35rem 0.7rem;
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent-hover);
   font-size: 0.8rem;
   font-weight: 600;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.peer-chip-muted {
+  background: #121212;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  font-weight: 500;
+}
+
+.save-box {
+  margin-top: 1.25rem;
+  padding: 1rem 1.1rem;
+  border-radius: 12px;
+  background: #121212;
+  border: 1px solid var(--border);
+}
+
+.save-box.ready {
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.save-label {
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.45rem;
+}
+
+.save-path {
+  display: block;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: #0a0a0a;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.save-hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.save-hint code {
+  font-size: 0.8rem;
+  color: var(--accent-hover);
 }
 
 @media (max-width: 640px) {
