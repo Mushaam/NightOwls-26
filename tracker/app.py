@@ -121,6 +121,32 @@ def peers_for_file(file_id: int):
     return jsonify(peers), 200
 
 
+@app.post("/files/<int:file_id>/unshare")
+@app.delete("/files/<int:file_id>")
+def unshare_file(file_id: int):
+    """
+    Remove a file from the central catalog (stop sharing).
+
+    Does not delete bytes on any peer — only tracker rows (file, chunks, claims).
+    """
+    data = request.get_json(silent=True) or {}
+    actor = data.get("actor") or request.args.get("actor") or "api"
+    try:
+        with _conn() as conn:
+            info = models.delete_file(conn, file_id, actor=str(actor))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+    return jsonify(
+        {
+            "status": "unshared",
+            "file_id": file_id,
+            "filename": info.get("filename"),
+            "file_hash": info.get("file_hash"),
+            "message": "Removed from tracker catalog; peer local copies are unchanged.",
+        }
+    ), 200
+
+
 @app.post("/peer_has_chunk")
 def peer_has_chunk():
     data = request.get_json(silent=True) or {}
@@ -188,8 +214,12 @@ def portal_rename(file_id: int):
 def portal_delete(file_id: int):
     try:
         with _conn() as conn:
-            info = models.delete_file(conn, file_id)
-        flash(f"Removed “{info.get('filename')}” from catalog.", "ok")
+            info = models.delete_file(conn, file_id, actor="portal")
+        flash(
+            f"Unshared “{info.get('filename')}” from the tracker "
+            "(peer copies were not deleted).",
+            "ok",
+        )
     except ValueError as exc:
         flash(str(exc), "err")
     return redirect(url_for("portal_inventory"))

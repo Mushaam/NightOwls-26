@@ -3,7 +3,7 @@
 {% block body %}
 <h1>Audit log</h1>
 <p class="muted">
-  Tracker events (peer register, file register/update, inventory rename/delete).
+  Tracker events (peer register, file register/update, unshare, inventory rename).
   Chunk claims are not logged (too noisy).
   <a href="{{ url_for('export_audit_csv') }}">Export CSV</a>
 </p>

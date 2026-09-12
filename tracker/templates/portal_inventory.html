@@ -3,7 +3,9 @@
 {% block body %}
 <h1>Inventory</h1>
 <p class="muted">
-  Central file catalog. Delete removes the tracker entry (peers keep local bytes).
+  Central file catalog.
+  <strong>Unshare</strong> removes the file from the tracker only — peers keep their local copies;
+  browse/download will treat it as if it was never shared.
   <a href="{{ url_for('export_inventory_csv') }}">Export CSV</a>
 </p>
 
@@ -40,9 +42,9 @@
         <form
           method="post"
           action="{{ url_for('portal_delete', file_id=f.id) }}"
-          onsubmit="return confirm('Remove file #{{ f.id }} from the catalog?');"
+          onsubmit="return confirm('Unshare file #{{ f.id }} from the tracker?\n\nPeers keep local copies; it will no longer appear in Browse.');"
         >
-          <button type="submit" class="danger">Delete</button>
+          <button type="submit" class="danger">Unshare</button>
         </form>
       </td>
     </tr>

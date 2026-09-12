@@ -634,6 +634,47 @@ def api_library_open(file_id: int):
     return jsonify({"status": "opened", "path": str(path)})
 
 
+@app.post("/api/library/<int:file_id>/unshare")
+def api_library_unshare(file_id: int):
+    """
+    Stop sharing via the tracker catalog. Local library/disk are left alone.
+    """
+    inventory: LocalInventory = app.config["INVENTORY"]
+    entry = inventory.get(file_id)
+    tracker = app.config["TRACKER_URL"]
+    actor = f"{app.config['PEER_IP']}:{app.config['PEER_PORT']}"
+    payload = json.dumps({"actor": actor}).encode()
+    req = urllib.request.Request(
+        f"{tracker}/files/{file_id}/unshare",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            body = json.loads(resp.read().decode() or "{}")
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode(errors="replace")
+        try:
+            err = json.loads(detail).get("error") or detail
+        except json.JSONDecodeError:
+            err = detail or str(exc)
+        return jsonify({"error": err}), exc.code if exc.code in {404, 400} else 502
+    except urllib.error.URLError as exc:
+        return jsonify({"error": f"Tracker unreachable: {exc}"}), 502
+
+    return jsonify(
+        {
+            "status": "unshared",
+            "file_id": file_id,
+            "filename": (entry or {}).get("filename") or body.get("filename"),
+            "local_kept": True,
+            "tracker": body,
+            "message": "Removed from tracker. Your local copy is unchanged.",
+        }
+    )
+
+
 @app.post("/api/library/<int:file_id>/delete")
 def api_library_delete(file_id: int):
     """Remove a library entry from SQLite and wipe local complete/meta/chunks."""

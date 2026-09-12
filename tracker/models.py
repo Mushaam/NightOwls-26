@@ -142,7 +142,18 @@ def rename_file(conn: sqlite3.Connection, file_id: int, filename: str) -> dict[s
     return meta
 
 
-def delete_file(conn: sqlite3.Connection, file_id: int) -> dict[str, Any]:
+def delete_file(
+    conn: sqlite3.Connection,
+    file_id: int,
+    *,
+    actor: str = "portal",
+) -> dict[str, Any]:
+    """
+    Remove a file from the tracker catalog only.
+
+    Cascades chunk manifests and peer_chunk claims. Does **not** touch peer disks.
+    After this, the swarm treats the file as if it was never announced.
+    """
     row = conn.execute("SELECT * FROM files WHERE id = ?", (file_id,)).fetchone()
     if not row:
         raise ValueError(f"Unknown file_id: {file_id}")
@@ -150,11 +161,11 @@ def delete_file(conn: sqlite3.Connection, file_id: int) -> dict[str, Any]:
     conn.execute("DELETE FROM files WHERE id = ?", (file_id,))
     log_audit(
         conn,
-        "inventory_delete",
-        actor="portal",
+        "file_unshare",
+        actor=actor,
         detail=(
             f"file_id={file_id} name={info.get('filename')} "
-            f"hash={info.get('file_hash')}"
+            f"hash={info.get('file_hash')} (catalog only; peer copies kept)"
         ),
     )
     conn.commit()

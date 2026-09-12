@@ -361,13 +361,44 @@
       });
     });
 
+    document.querySelectorAll(".lib-unshare").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-id");
+        const name = btn.getAttribute("data-name") || `#${id}`;
+        if (
+          !window.confirm(
+            `Unshare “${name}” from the tracker?\n\nIt will disappear from Browse for everyone.\nYour local copy stays on this peer.`
+          )
+        ) {
+          return;
+        }
+        btn.disabled = true;
+        setStatus(libraryStatus, `Unsharing ${name} from tracker…`);
+        if (libraryStatus) libraryStatus.hidden = false;
+        try {
+          const res = await fetch(`/api/library/${id}/unshare`, { method: "POST" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Unshare failed");
+          setStatus(
+            libraryStatus,
+            data.message || `Unshared “${name}”. Local copy kept.`,
+            "ok"
+          );
+          btn.disabled = false;
+        } catch (err) {
+          btn.disabled = false;
+          setStatus(libraryStatus, err.message || String(err), "err");
+        }
+      });
+    });
+
     document.querySelectorAll(".lib-delete").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const id = btn.getAttribute("data-id");
         const name = btn.getAttribute("data-name") || `#${id}`;
         if (
           !window.confirm(
-            `Delete “${name}” from this peer?\n\nRemoves the library record and local files (complete, meta, chunks).`
+            `Delete “${name}” from this peer only?\n\nRemoves the library record and local files (complete, meta, chunks).\nDoes not change the tracker catalog for other peers.`
           )
         ) {
           return;
@@ -379,7 +410,7 @@
           const res = await fetch(`/api/library/${id}/delete`, { method: "POST" });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || "Delete failed");
-          setStatus(libraryStatus, `Deleted “${data.filename || name}”.`, "ok");
+          setStatus(libraryStatus, `Deleted “${data.filename || name}” locally.`, "ok");
           const row = document.getElementById(`lib-${id}`);
           if (row) row.remove();
           window.setTimeout(() => window.location.reload(), 500);

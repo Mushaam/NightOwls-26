@@ -105,6 +105,15 @@
                     download
                     >Copy</a
                   >
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-compact lib-unshare"
+                    data-id="{{ e.file_id }}"
+                    data-name="{{ e.filename }}"
+                    title="Remove from tracker catalog only"
+                  >
+                    Unshare
+                  </button>
                   {% else %}
                   <span class="muted">Unavailable</span>
                   {% endif %}
@@ -114,7 +123,7 @@
                     data-id="{{ e.file_id }}"
                     data-name="{{ e.filename }}"
                   >
-                    Delete
+                    Delete local
                   </button>
                 </td>
               </tr>
