@@ -1,0 +1,45 @@
+the dashboard that displays all the files is very cluttered and not easy to navigate. i want you to give me an option to switch views, let the current view be called as the card view, and make a new view       
+  that displayes data in the form of a list or a table of entries. show relevant metadata, keep the UI clean and minimal. you also need to implement a sorting feature that will allow users to sort entries        
+  based on relevant metadata. i want you to execute changes in 2 phases, first, implement the list view, in second phase, implement the sorting feature. please keep these changeshighly maintainable so that       
+  new metadata categories can be updated later. (also take care of the agent md for further maintainability)                                                                                                        
+                                                                                                                                                                                                                    
+
+  Implementing in two phases: list view first, then sorting — both driven by a shared metadata schema so new fields stay easy to add.
+
+    Read, grepped 3 files, 1 grep
+    Read peer/templates/index.html
+    Read peer/static/script.js
+    Grepped "\.grid|\.card|\.search|\.empty|\.btn" in peer/static/style.css
+    Read tracker/models.py lines 143-157
+
+    To-do Working on 3 to-dos
+    ◐ Phase 1: metadata schema + card/list view toggle
+    ○ Phase 2: schema-driven sorting for list (and card)
+    ○ Update AGENTS.md for view/sort maintainability
+
+    Read 3 files
+    Read peer/static/script.js lines 99-318
+    Read peer/app.py lines 93-107
+    Read peer/static/style.css lines 220-259
+
+  Building a schema-driven catalog module: Phase 1 is the list view and toggle; Phase 2 adds sorting on that same schema.
+
+    Edit file-catalog.js Interrupted
+
+
+
+                                                                                                                                                                                                                    
+  → Add a follow-up                                                                                                                                                                                                 
+                                                                                                                                                                                                                    
+
+  Auto · 33.3% · 9 files edited                                                                                                                                                                      Run Everything
+  ~/Desktop/cc/NightOwls-26 · PageRestructure
+
+  Error: You've hit your usage limit
+  Get Cursor Pro for more Agent usage, unlimited Tab, and more.
+  fallbackModel: 
+  spendLimitHit: false
+  chatMessage: *You've hit your free requests limit. [Upgrade to Pro](https://www.cursor.com/api/auth/checkoutDeepControl?tier=pro) for more usage, frontier models, Cloud Agents, and more. Your usage limits will
+  reset when your monthly cycle ends on 10/12/2026.*
+  spendLimits: [50,100,200]
+
