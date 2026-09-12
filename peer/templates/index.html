@@ -39,11 +39,40 @@
       {% endif %}
 
       {% if files %}
+      <div class="search-bar" role="search">
+        <label class="visually-hidden" for="file-search">Search files</label>
+        <div class="search-field">
+          <span class="search-icon" aria-hidden="true"></span>
+          <input
+            type="search"
+            id="file-search"
+            name="q"
+            placeholder="Search by name, extension, id, or hash…"
+            autocomplete="off"
+            spellcheck="false"
+            enterkeyhint="search"
+          />
+          <button type="button" class="search-clear" id="file-search-clear" hidden aria-label="Clear search">
+            Clear
+          </button>
+        </div>
+        <p class="search-meta" id="file-search-meta" aria-live="polite"></p>
+      </div>
+
       <div class="grid" id="file-grid">
         {% for f in files %}
-        <article class="card">
+        <article
+          class="card"
+          data-file-id="{{ f.id }}"
+          data-name="{{ f.filename }}"
+          data-hash="{{ f.file_hash or '' }}"
+          data-size="{{ f.size_label }}"
+          data-seeders="{{ f.seeder_count }}"
+          data-chunks="{{ f.chunk_count }}"
+          data-ext="{{ (f.filename.rsplit('.', 1)[1] if '.' in f.filename else '')|lower }}"
+        >
           <div class="card-art" aria-hidden="true"></div>
-          <h2>{{ f.filename }}</h2>
+          <h2 class="card-title">{{ f.filename }}</h2>
           <div class="meta">
             <span>{{ f.size_label }}</span>
             <span class="dot">•</span>
@@ -58,6 +87,10 @@
           </div>
         </article>
         {% endfor %}
+      </div>
+      <div class="empty search-empty" id="file-search-empty" hidden>
+        <p>No files match your search.</p>
+        <p><button type="button" class="btn btn-ghost" id="file-search-reset">Clear search</button></p>
       </div>
       {% else %}
       <div class="empty">

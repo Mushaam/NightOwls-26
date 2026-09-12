@@ -96,11 +96,234 @@
     });
   }
 
-  /* ---- Download page ---- */
-  const panel = document.querySelector("[data-file-id]");
-  const startBtn = $("#start-download");
-  if (!panel || !startBtn) return;
+  /* ---- Browse search ---- */
+  const fileGrid = $("#file-grid");
+  const searchInput = $("#file-search");
+  if (fileGrid && searchInput) {
+    const cards = Array.from(fileGrid.querySelectorAll(".card"));
+    const metaEl = $("#file-search-meta");
+    const emptyEl = $("#file-search-empty");
+    const clearBtn = $("#file-search-clear");
+    const resetBtn = $("#file-search-reset");
+    const originals = new Map(
+      cards.map((card, i) => {
+        const name = card.getAttribute("data-name") || "";
+        const title = card.querySelector(".card-title, h2");
+        if (title) title.dataset.raw = name;
+        return [card, i];
+      })
+    );
 
+    let composing = false;
+    let raf = 0;
+
+    function normalize(s) {
+      return String(s || "")
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "");
+    }
+
+    function tokens(q) {
+      return normalize(q)
+        .split(/[\s/_.,:;+\-]+/)
+        .map((t) => t.trim())
+        .filter(Boolean);
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function highlight(name, toks) {
+      if (!toks.length) return escapeHtml(name);
+      const lower = normalize(name);
+      const ranges = [];
+      for (const tok of toks) {
+        if (!tok) continue;
+        let from = 0;
+        while (from < lower.length) {
+          const at = lower.indexOf(tok, from);
+          if (at < 0) break;
+          ranges.push([at, at + tok.length]);
+          from = at + tok.length;
+        }
+      }
+      if (!ranges.length) return escapeHtml(name);
+      ranges.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+      const merged = [];
+      for (const r of ranges) {
+        const last = merged[merged.length - 1];
+        if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+        else merged.push([...r]);
+      }
+      let out = "";
+      let cursor = 0;
+      for (const [a, b] of merged) {
+        out += escapeHtml(name.slice(cursor, a));
+        out += `<mark>${escapeHtml(name.slice(a, b))}</mark>`;
+        cursor = b;
+      }
+      out += escapeHtml(name.slice(cursor));
+      return out;
+    }
+
+    function scoreCard(card, query, toks) {
+      const name = normalize(card.getAttribute("data-name"));
+      const id = String(card.getAttribute("data-file-id") || "");
+      const hash = normalize(card.getAttribute("data-hash"));
+      const ext = normalize(card.getAttribute("data-ext"));
+      const size = normalize(card.getAttribute("data-size"));
+      const seeders = String(card.getAttribute("data-seeders") || "");
+      const chunks = String(card.getAttribute("data-chunks") || "");
+      const hay = `${name} ${id} ${hash} ${ext} ${size} ${seeders} ${chunks}`;
+
+      if (!query) return { score: 0, match: true };
+
+      let score = 0;
+
+      // Exact / prefix filename wins
+      if (name === query) score += 1000;
+      else if (name.startsWith(query)) score += 800;
+      else if (name.includes(query)) score += 500;
+
+      // File id
+      if (id === query) score += 900;
+      else if (id.startsWith(query)) score += 450;
+
+      // Extension: "pdf" or ".pdf"
+      const qExt = query.startsWith(".") ? query.slice(1) : query;
+      if (ext && (ext === qExt || `.${ext}` === query)) score += 420;
+
+      // Hash prefix (at least 4 chars to avoid noise)
+      if (query.length >= 4 && hash.startsWith(query)) score += 380;
+
+      // Token AND: every token must hit somewhere useful
+      if (toks.length) {
+        let all = true;
+        for (const tok of toks) {
+          const inName = name.includes(tok);
+          const namePrefix = name.split(/[\s._\-]+/).some((p) => p.startsWith(tok));
+          const elsewhere =
+            id.includes(tok) ||
+            hash.includes(tok) ||
+            ext === tok ||
+            size.includes(tok) ||
+            seeders === tok ||
+            chunks === tok ||
+            hay.includes(tok);
+          if (!inName && !namePrefix && !elsewhere) {
+            all = false;
+            break;
+          }
+          if (namePrefix) score += 120;
+          else if (inName) score += 80;
+          else score += 25;
+        }
+        if (!all) return { score: -1, match: false };
+      } else if (score <= 0 && !hay.includes(query)) {
+        return { score: -1, match: false };
+      }
+
+      // Prefer shorter names / more seeders slightly when tied
+      score += Math.min(40, Number(seeders) || 0);
+      score -= Math.min(30, Math.floor(name.length / 8));
+
+      return { score, match: score >= 0 };
+    }
+
+    function applySearch(raw) {
+      const query = normalize(raw).trim();
+      const toks = tokens(query);
+      const ranked = cards.map((card) => {
+        const { score, match } = scoreCard(card, query, toks);
+        return { card, score, match };
+      });
+
+      ranked.sort((a, b) => {
+        if (a.match !== b.match) return a.match ? -1 : 1;
+        if (query) {
+          if (b.score !== a.score) return b.score - a.score;
+        }
+        return originals.get(a.card) - originals.get(b.card);
+      });
+
+      let shown = 0;
+      const frag = document.createDocumentFragment();
+      for (const { card, match } of ranked) {
+        const title = card.querySelector(".card-title, h2");
+        const rawName = title?.dataset.raw || card.getAttribute("data-name") || "";
+        if (title) {
+          title.innerHTML = match && query ? highlight(rawName, toks.length ? toks : [query]) : escapeHtml(rawName);
+        }
+        card.classList.toggle("is-hidden", !match);
+        if (match) {
+          shown += 1;
+          frag.appendChild(card);
+        } else {
+          frag.appendChild(card);
+        }
+      }
+      fileGrid.appendChild(frag);
+
+      if (clearBtn) clearBtn.hidden = !query;
+      if (emptyEl) emptyEl.hidden = shown !== 0;
+      if (metaEl) {
+        if (!query) {
+          metaEl.textContent = `${cards.length} file${cards.length === 1 ? "" : "s"}`;
+        } else {
+          metaEl.textContent = `${shown} of ${cards.length} match${shown === 1 ? "" : "es"}`;
+        }
+      }
+    }
+
+    function scheduleApply() {
+      if (composing) return;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => applySearch(searchInput.value));
+    }
+
+    searchInput.addEventListener("compositionstart", () => {
+      composing = true;
+    });
+    searchInput.addEventListener("compositionend", () => {
+      composing = false;
+      scheduleApply();
+    });
+    searchInput.addEventListener("input", scheduleApply);
+
+    function clearSearch() {
+      searchInput.value = "";
+      applySearch("");
+      searchInput.focus();
+    }
+    if (clearBtn) clearBtn.addEventListener("click", clearSearch);
+    if (resetBtn) resetBtn.addEventListener("click", clearSearch);
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "/" && document.activeElement !== searchInput && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tag = (document.activeElement && document.activeElement.tagName) || "";
+        if (tag === "INPUT" || tag === "TEXTAREA") return;
+        e.preventDefault();
+        searchInput.focus();
+        searchInput.select();
+      }
+      if (e.key === "Escape" && document.activeElement === searchInput) {
+        clearSearch();
+      }
+    });
+
+    applySearch("");
+  }
+
+  /* ---- Download page ---- */
+  const panel = document.querySelector(".panel[data-file-id]");
+  const startBtn = $("#start-download");
+  if (panel && startBtn) {
   const fileId = panel.getAttribute("data-file-id");
   const bar = $("#progress-bar");
   const percentEl = $("#progress-percent");
@@ -287,4 +510,5 @@
     }
     startDownload();
   })();
+  }
 })();

@@ -186,7 +186,7 @@ CLI: `python -m peer.swarm upload --path F --data-dir D --peer-port P` · `… d
 
 ## UI notes
 
-- Browse: server-rendered cards from tracker `/files`
+- Browse: server-rendered cards from tracker `/files` + **live client search** (`#file-search` in `script.js`): ranks by name/prefix/tokens/id/ext/hash; updates on `input` (IME-safe); `/` focuses, Esc clears; match highlight
 - Upload: drag-drop → `POST /api/upload`
 - Download page: **auto-starts** unless already complete; button = start/retry; poll 1s; peer-count bump CSS (`.live-counter.bump`); `.status.warn` for peer failures
 - Files: `peer/templates/*` `peer/static/script.js` `style.css`
