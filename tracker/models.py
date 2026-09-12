@@ -81,6 +81,8 @@ def upload_metadata(
     chunk_hashes: list[str],
     peer_ip: str,
     peer_port: int,
+    *,
+    register_as_seeder: bool = True,
 ) -> dict[str, Any]:
     peer = register_peer(conn, peer_ip, peer_port)
 
@@ -106,12 +108,13 @@ def upload_metadata(
             [(file_id, i, h) for i, h in enumerate(chunk_hashes)],
         )
 
-    # Seeder has every chunk
-    conn.executemany(
-        "INSERT OR IGNORE INTO peer_chunks (peer_id, file_id, chunk_index) "
-        "VALUES (?, ?, ?)",
-        [(peer["id"], file_id, i) for i in range(len(chunk_hashes))],
-    )
+    # Only claim chunks once local bytes are ready to serve (see swarm.upload_file).
+    if register_as_seeder:
+        conn.executemany(
+            "INSERT OR IGNORE INTO peer_chunks (peer_id, file_id, chunk_index) "
+            "VALUES (?, ?, ?)",
+            [(peer["id"], file_id, i) for i in range(len(chunk_hashes))],
+        )
     conn.commit()
 
     return get_file(conn, file_id)

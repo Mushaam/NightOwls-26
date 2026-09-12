@@ -107,9 +107,9 @@ def upload_file(
 
     Steps:
       1. Hash/chunk the source (256 KB chunks, SHA-256)
-      2. POST /upload_metadata to the tracker (registers this peer as full seeder)
-      3. import_file into the local store under the tracker's file_id
-         so GET /chunk/<file_id>/<index> can serve pieces
+      2. POST /upload_metadata with register_as_seeder=false (get file_id only)
+      3. import_file into the local store so GET /chunk/<file_id>/<index> works
+      4. POST /upload_metadata again with register_as_seeder=true (announce ready)
     """
     source = Path(source)
     if not source.is_file():
@@ -122,18 +122,22 @@ def upload_file(
     if file_size == 0 or not chunk_hashes:
         raise UploadError("Cannot seed an empty file")
 
+    meta_payload = {
+        "filename": filename,
+        "file_hash": file_hash,
+        "file_size": file_size,
+        "chunk_hashes": chunk_hashes,
+        "peer_ip": peer_ip,
+        "peer_port": peer_port,
+    }
+
     try:
+        # Register the file first without advertising chunks — otherwise other
+        # peers can start downloading while local pieces are still being written.
         tracker_meta = _http_json(
             f"{tracker_url}/upload_metadata",
             method="POST",
-            payload={
-                "filename": filename,
-                "file_hash": file_hash,
-                "file_size": file_size,
-                "chunk_hashes": chunk_hashes,
-                "peer_ip": peer_ip,
-                "peer_port": peer_port,
-            },
+            payload={**meta_payload, "register_as_seeder": False},
         )
     except urllib.error.HTTPError as exc:
         body = exc.read().decode(errors="replace")
@@ -151,6 +155,22 @@ def upload_file(
     if local["file_hash"] != file_hash or local["chunk_hashes"] != chunk_hashes:
         raise UploadError("Local import hash mismatch after upload")
 
+    try:
+        tracker_meta = _http_json(
+            f"{tracker_url}/upload_metadata",
+            method="POST",
+            payload={**meta_payload, "register_as_seeder": True},
+        )
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode(errors="replace")
+        raise UploadError(
+            f"Local seed ready but tracker rejected seeder announce ({exc.code}): {body}"
+        ) from exc
+    except urllib.error.URLError as exc:
+        raise UploadError(
+            f"Local seed ready but could not announce seeder to tracker: {exc}"
+        ) from exc
+
     result = {
         "file_id": file_id,
         "filename": filename,
@@ -161,7 +181,7 @@ def upload_file(
         "peer_ip": peer_ip,
         "peer_port": peer_port,
         "path": str(store.complete_dir / str(file_id) / filename),
-        "seeder_count": tracker_meta.get("seeder_count"),
+        "seeder_count": tracker_meta.get("seeder_count") if tracker_meta else None,
     }
     return result
 
@@ -216,6 +236,7 @@ def download_file(
     rr_cursor = 0
     fetched_this_run = 0
     failed_chunks: list[int] = []
+    failure_details: list[str] = []
 
     def emit(status: str, **extra: Any) -> None:
         if on_progress is None:
@@ -258,6 +279,11 @@ def download_file(
 
         if not candidates:
             failed_chunks.append(chunk_index)
+            detail = (
+                f"chunk {chunk_index}: no reachable seeders "
+                f"(known peers={len(peer_map)}; check PEER_IP / that the uploader is online)"
+            )
+            failure_details.append(detail)
             emit("no_peers", chunk_index=chunk_index)
             continue
 
@@ -307,13 +333,24 @@ def download_file(
 
         if not got:
             failed_chunks.append(chunk_index)
+            failure_details.append(
+                f"chunk {chunk_index}: " + ("; ".join(errors) if errors else "unknown error")
+            )
             emit("chunk_failed", chunk_index=chunk_index, errors=errors)
 
     missing = [i for i in range(chunk_count) if not have_valid(i)]
     if missing:
+        hint = ""
+        if failure_details:
+            # Keep the message readable; full detail is in the first few failures.
+            shown = failure_details[:3]
+            more = len(failure_details) - len(shown)
+            hint = " — " + " | ".join(shown)
+            if more > 0:
+                hint += f" | …+{more} more"
         raise DownloadError(
             f"Incomplete download for file_id={file_id}; "
-            f"missing chunks: {failed_chunks or missing}"
+            f"missing chunks: {failed_chunks or missing}{hint}"
         )
 
     dest_dir = store.complete_dir / str(file_id)

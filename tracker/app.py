@@ -54,6 +54,10 @@ def upload_metadata():
     if not isinstance(chunk_hashes, list) or not chunk_hashes:
         return jsonify({"error": "chunk_hashes must be a non-empty list"}), 400
 
+    register_as_seeder = data.get("register_as_seeder", True)
+    if not isinstance(register_as_seeder, bool):
+        return jsonify({"error": "register_as_seeder must be a boolean"}), 400
+
     try:
         with _conn() as conn:
             meta = models.upload_metadata(
@@ -64,6 +68,7 @@ def upload_metadata():
                 chunk_hashes=chunk_hashes,
                 peer_ip=data["peer_ip"],
                 peer_port=int(data["peer_port"]),
+                register_as_seeder=register_as_seeder,
             )
     except Exception as exc:  # noqa: BLE001
         return jsonify({"error": str(exc)}), 400
