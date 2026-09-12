@@ -4,9 +4,9 @@ setlocal EnableExtensions EnableDelayedExpansion
 REM NightOwls — plug-and-play peer client.
 REM
 REM Usage:
-REM   client.bat
-REM   client.bat http://192.168.1.10:5000
-REM   scripts\start_client.bat http://100.x.y.z:5000 --port 6001
+REM   client.bat 192.168.1.10
+REM   client.bat 192.168.1.10:5000
+REM   client.bat http://192.168.1.10:5000 --port 6001
 
 cd /d "%~dp0\.."
 set "ROOT=%CD%"
@@ -16,6 +16,8 @@ set "PIP=%ROOT%\.venv\Scripts\pip.exe"
 if not defined PEER_PORT set "PEER_PORT=6001"
 if not defined PEER_HOST set "PEER_HOST=0.0.0.0"
 if not defined PEER_DATA_DIR set "PEER_DATA_DIR=%USERPROFILE%\NightOwls-data"
+set "DEFAULT_TRACKER_PORT=5000"
+set "TRACKER_ARG="
 
 :parse
 if "%~1"=="" goto after_parse
@@ -51,18 +53,59 @@ if /I "%~1"=="--data-dir" (
   shift
   goto parse
 )
-echo %~1| findstr /B /I "http:// https://" >nul
+echo %~1| findstr /B /C:"-" >nul
 if not errorlevel 1 (
-  set "TRACKER_URL=%~1"
-  shift
-  goto parse
+  echo error: unknown option: %~1
+  goto show_help
 )
-echo error: unknown argument: %~1
-goto show_help
+if defined TRACKER_ARG (
+  echo error: tracker already set; unexpected argument: %~1
+  exit /b 1
+)
+set "TRACKER_ARG=%~1"
+shift
+goto parse
 
 :after_parse
-if not defined TRACKER_URL set "TRACKER_URL=http://127.0.0.1:5000"
+if not defined TRACKER_ARG (
+  if defined TRACKER_URL goto normalize_done
+  echo error: tracker IP/URL is required.
+  echo.
+  echo Usage: %~nx0 ^<TRACKER_IP^>
+  echo   e.g. %~nx0 192.168.1.10
+  echo        %~nx0 192.168.1.10:5000
+  echo.
+  goto show_help
+)
 
+REM Normalize TRACKER_ARG → TRACKER_URL
+echo %TRACKER_ARG%| findstr /B /I "http:// https://" >nul
+if not errorlevel 1 (
+  set "TRACKER_URL=%TRACKER_ARG%"
+  goto normalize_done
+)
+
+REM Count dots + optional :port — treat as IPv4 if it looks like a.b.c.d[:port]
+echo %TRACKER_ARG%| findstr /R "^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" >nul
+if not errorlevel 1 (
+  set "TRACKER_URL=http://%TRACKER_ARG%:%DEFAULT_TRACKER_PORT%"
+  goto normalize_done
+)
+echo %TRACKER_ARG%| findstr /R "^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*:[0-9][0-9]*$" >nul
+if not errorlevel 1 (
+  set "TRACKER_URL=http://%TRACKER_ARG%"
+  goto normalize_done
+)
+
+REM hostname or hostname:port
+echo %TRACKER_ARG%| findstr /C:":" >nul
+if not errorlevel 1 (
+  set "TRACKER_URL=http://%TRACKER_ARG%"
+) else (
+  set "TRACKER_URL=http://%TRACKER_ARG%:%DEFAULT_TRACKER_PORT%"
+)
+
+:normalize_done
 REM strip trailing slash
 if "!TRACKER_URL:~-1!"=="/" set "TRACKER_URL=!TRACKER_URL:~0,-1!"
 
@@ -124,10 +167,13 @@ exit /b %ERRORLEVEL%
 :show_help
 echo NightOwls peer client
 echo.
-echo Usage: %~nx0 [TRACKER_URL] [options]
+echo Usage: %~nx0 ^<TRACKER_IP_OR_URL^> [options]
 echo.
 echo Arguments:
-echo   TRACKER_URL           Tracker URL (default: http://127.0.0.1:5000)
+echo   TRACKER_IP_OR_URL     Pass the tracker address every time:
+echo                           192.168.1.10
+echo                           192.168.1.10:5000
+echo                           http://192.168.1.10:5000
 echo.
 echo Options:
 echo   --port N              Peer listen port (default: 6001)
@@ -136,7 +182,7 @@ echo   --data-dir DIR        Local storage (default: %%USERPROFILE%%\NightOwls-d
 echo   -h, --help            Show this help
 echo.
 echo Examples:
-echo   %~nx0
-echo   %~nx0 http://192.168.1.10:5000
-echo   %~nx0 http://100.64.1.2:5000 --port 6002
+echo   %~nx0 192.168.1.10
+echo   %~nx0 100.64.1.2:5000
+echo   %~nx0 http://192.168.1.10:5000 --port 6002
 exit /b 1
