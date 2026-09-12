@@ -79,11 +79,12 @@ python3 -m venv .venv
 
 Copy the printed **Share this:** URL (e.g. `http://192.168.1.10:5000`).
 
-**Same machine or Machine B — peer UI:**
+**Same machine or Machine B — peer UI** (pass the tracker IP every time):
 
 ```bash
-./client
-# or, pointing at a remote tracker:
+./client 192.168.1.10
+# or with port / full URL:
+./client 192.168.1.10:5000
 ./client http://192.168.1.10:5000
 ```
 

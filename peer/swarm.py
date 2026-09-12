@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from peer.store import ChunkStore
-from shared.utils import chunk_file, verify_chunk, verify_file, write_chunks_to_file
+from shared.utils import CHUNK_SIZE, chunk_file, verify_chunk, verify_file, write_chunks_to_file
 
 
 class SwarmError(RuntimeError):
@@ -195,6 +195,23 @@ def download_file(
     file_hash = manifest["file_hash"]
     file_size = int(manifest["file_size"])
 
+    # Drop leftover corrupt complete/ from a previous failed run so has_chunk
+    # cannot treat it as a source of truth.
+    store.clear_incomplete(file_id)
+
+    def chunk_size_for(index: int) -> int:
+        if index < chunk_count - 1:
+            return CHUNK_SIZE
+        return file_size - (chunk_count - 1) * CHUNK_SIZE
+
+    def have_valid(index: int) -> bool:
+        return store.has_chunk(
+            file_id,
+            index,
+            expected_hash=chunk_hashes[index],
+            expected_size=chunk_size_for(index),
+        )
+
     peer_map = fetch_peer_map(tracker_url, file_id)
     rr_cursor = 0
     fetched_this_run = 0
@@ -203,7 +220,7 @@ def download_file(
     def emit(status: str, **extra: Any) -> None:
         if on_progress is None:
             return
-        have = sum(1 for i in range(chunk_count) if store.has_chunk(file_id, i))
+        have = sum(1 for i in range(chunk_count) if have_valid(i))
         payload = {
             "file_id": file_id,
             "filename": filename,
@@ -219,9 +236,13 @@ def download_file(
     emit("starting")
 
     for chunk_index, expected_hash in enumerate(chunk_hashes):
-        if store.has_chunk(file_id, chunk_index):
+        expected_size = chunk_size_for(chunk_index)
+        if have_valid(chunk_index):
             emit("skip_existing", chunk_index=chunk_index)
             continue
+
+        # Stale/empty/corrupt local piece — delete and re-fetch.
+        store.delete_chunk(file_id, chunk_index)
 
         if refresh_peers and chunk_index > 0 and chunk_index % 5 == 0:
             try:
@@ -258,6 +279,12 @@ def download_file(
                 errors.append(f"{peer['ip']}:{peer['port']} {exc.reason}")
                 continue
 
+            if len(data) != expected_size:
+                errors.append(
+                    f"{peer['ip']}:{peer['port']} size {len(data)} != {expected_size}"
+                )
+                continue
+
             if not verify_chunk(data, expected_hash):
                 errors.append(f"{peer['ip']}:{peer['port']} hash mismatch")
                 continue
@@ -282,11 +309,11 @@ def download_file(
             failed_chunks.append(chunk_index)
             emit("chunk_failed", chunk_index=chunk_index, errors=errors)
 
-    have_all = all(store.has_chunk(file_id, i) for i in range(chunk_count))
-    if not have_all:
+    missing = [i for i in range(chunk_count) if not have_valid(i)]
+    if missing:
         raise DownloadError(
             f"Incomplete download for file_id={file_id}; "
-            f"missing chunks: {failed_chunks or 'unknown'}"
+            f"missing chunks: {failed_chunks or missing}"
         )
 
     dest_dir = store.complete_dir / str(file_id)
@@ -298,12 +325,22 @@ def download_file(
         block = store.load_chunk(file_id, i)
         if block is None:
             raise DownloadError(f"Missing chunk {i} during reassembly")
+        if len(block) != chunk_size_for(i) or not verify_chunk(block, chunk_hashes[i]):
+            store.delete_chunk(file_id, i)
+            raise DownloadError(f"Corrupt chunk {i} during reassembly")
         ordered_chunks.append(block)
 
-    write_chunks_to_file(dest, ordered_chunks)
-
-    if not verify_file(dest, file_hash):
-        raise DownloadError(f"Reassembled file hash mismatch for file_id={file_id}")
+    # Write to a temp path first; only publish after whole-file hash matches.
+    tmp_dest = dest_dir / f".{filename}.partial"
+    try:
+        write_chunks_to_file(tmp_dest, ordered_chunks)
+        if not verify_file(tmp_dest, file_hash):
+            raise DownloadError(f"Reassembled file hash mismatch for file_id={file_id}")
+        tmp_dest.replace(dest)
+    except Exception:
+        tmp_dest.unlink(missing_ok=True)
+        store.clear_incomplete(file_id)
+        raise
 
     meta = {
         "file_id": file_id,
@@ -314,6 +351,7 @@ def download_file(
         "chunk_count": chunk_count,
         "path": str(dest),
         "fetched_this_run": fetched_this_run,
+        "verified": True,
     }
     (store.meta_dir / f"{file_id}.json").write_text(json.dumps(meta, indent=2))
     emit("complete", path=str(dest))

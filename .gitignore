@@ -1,6 +1,51 @@
+# Virtualenv
 .venv/
+venv/
+env/
+
+# Python cache
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.pyo
+
+# Tracker / server runtime data (do not commit seeded files or DB)
 data/
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
+tracker/tracker.db
+tracker/*.db
+
+# Peer local storage (chunks, completed downloads, uploads)
+**/chunks/
+**/complete/
+**/meta/
+**/_uploads/
+peer/data/
+NightOwls-data/
+
+# Seed / demo run dirs
+seed_sources/
+**/seed_sources/
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# Editor / OS junk
 .Rhistory
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Logs and temp
+*.log
+tmp/
+.temp/
+*.partial

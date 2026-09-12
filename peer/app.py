@@ -14,6 +14,7 @@ from werkzeug.utils import secure_filename
 
 from peer.store import ChunkStore
 from peer.swarm import DownloadError, UploadError, download_file, upload_file
+from shared.utils import CHUNK_SIZE, verify_chunk
 
 app = Flask(__name__)
 
@@ -117,6 +118,18 @@ def get_chunk(file_id: int, chunk_index: int):
     data = store.load_chunk(file_id, chunk_index)
     if data is None:
         return jsonify({"error": "chunk not found"}), 404
+    # Refuse to serve empty/truncated stubs that would poison other peers.
+    meta = store.load_meta(file_id) or {}
+    file_size = meta.get("file_size")
+    chunk_count = meta.get("chunk_count")
+    if file_size is not None and chunk_count is not None:
+        expected = store.expected_chunk_size(file_id, chunk_index, int(file_size), int(chunk_count))
+        if expected is not None and len(data) != expected:
+            return jsonify({"error": "chunk size mismatch"}), 404
+        hashes = meta.get("chunk_hashes") or []
+        if chunk_index < len(hashes):
+            if not verify_chunk(data, hashes[chunk_index]):
+                return jsonify({"error": "chunk hash mismatch"}), 404
     return Response(
         data,
         status=200,
@@ -170,7 +183,9 @@ def download_page(file_id: int):
     complete_dir = (data_dir / "complete" / str(file_id)).resolve()
     expected_path = complete_dir / filename
     store: ChunkStore = app.config["STORE"]
-    existing = store._complete_path(file_id)
+    existing = None
+    if store.is_verified_complete(file_id):
+        existing = store._complete_path(file_id)
     return render_template(
         "download.html",
         file_id=file_id,
@@ -284,48 +299,61 @@ def api_download(file_id: int):
 
 @app.get("/progress/<int:file_id>")
 def progress(file_id: int):
-    """Progress snapshot for UI polling (refined further in Step 7)."""
+    """Progress snapshot for UI polling."""
     store: ChunkStore = app.config["STORE"]
     data_dir = Path(app.config["DATA_DIR"]).resolve()
     job = dict(app.config["DOWNLOADS"].get(file_id) or {})
 
     chunks_total = int(job.get("chunks_total") or 0)
-    if not chunks_total:
-        try:
-            meta = _tracker_json(f"/files/{file_id}")
-            chunks_total = int(meta.get("chunk_count") or len(meta.get("chunk_hashes") or []))
-            job.setdefault("filename", meta.get("filename"))
-        except Exception:  # noqa: BLE001
-            pass
+    chunk_hashes: list[str] = []
+    file_size = None
+    filename = job.get("filename")
+    file_hash = None
+    try:
+        meta = _tracker_json(f"/files/{file_id}")
+        chunk_hashes = list(meta.get("chunk_hashes") or [])
+        chunks_total = chunks_total or int(meta.get("chunk_count") or len(chunk_hashes))
+        filename = filename or meta.get("filename")
+        file_size = int(meta.get("file_size") or 0)
+        file_hash = meta.get("file_hash")
+        job.setdefault("filename", filename)
+    except Exception:  # noqa: BLE001
+        pass
+
+    def chunk_ok(i: int) -> bool:
+        if chunk_hashes and file_size is not None and chunks_total:
+            expected_size = (
+                CHUNK_SIZE if i < chunks_total - 1 else file_size - (chunks_total - 1) * CHUNK_SIZE
+            )
+            return store.has_chunk(
+                file_id, i, expected_hash=chunk_hashes[i], expected_size=expected_size
+            )
+        return store.has_chunk(file_id, i)
 
     if chunks_total:
-        have = sum(1 for i in range(chunks_total) if store.has_chunk(file_id, i))
+        have = sum(1 for i in range(chunks_total) if chunk_ok(i))
         job["chunks_have"] = have
         job["chunks_total"] = chunks_total
-        if job.get("status") != "error":
+        if job.get("status") not in {"error", "complete", "starting"}:
             job["percent"] = round(100.0 * have / chunks_total, 1)
-            if have == chunks_total and job.get("status") not in {"complete", "starting"}:
-                job["status"] = job.get("status") or "complete"
 
-    complete = store._complete_path(file_id)
-    if complete is not None:
+    # Only advertise a save path when the local copy is verified complete.
+    verified = store.is_verified_complete(file_id, expected_file_hash=file_hash)
+    complete = store._complete_path(file_id) if verified else None
+    if complete is not None and job.get("status") != "error":
         job["path"] = str(complete.resolve())
         if job.get("status") in {None, "idle"} and chunks_total and job.get("chunks_have") == chunks_total:
             job["status"] = "complete"
             job["percent"] = 100.0
 
-    filename = job.get("filename") or f"file_{file_id}"
+    filename = filename or f"file_{file_id}"
     job.setdefault("status", "idle")
     job.setdefault("percent", 0)
     job.setdefault("chunks_have", 0)
     job.setdefault("chunks_total", chunks_total)
     job.setdefault("peers_known", 0)
-    job.setdefault(
-        "path",
-        str((data_dir / "complete" / str(file_id) / filename).resolve())
-        if job.get("status") == "complete"
-        else None,
-    )
+    if job.get("status") == "complete" and not job.get("path"):
+        job["path"] = str((data_dir / "complete" / str(file_id) / filename).resolve())
     job["data_dir"] = str(data_dir)
     job["downloads_dir"] = str(data_dir / "complete")
     job["file_id"] = file_id

@@ -19,21 +19,22 @@ From the project root (creates `.venv` and installs Flask automatically):
 # Terminal 1 — tracker
 ./server
 
-# Terminal 2 — peer (open the printed UI URL)
-./client
+# Terminal 2 — peer (pass the tracker IP every time)
+./client 127.0.0.1
 ```
 
 On another machine on the same LAN / Tailscale:
 
 ```bash
-./client http://<tracker-ip>:5000
+./client <tracker-ip>
+# e.g. ./client 192.168.1.10
 ```
 
 | Command | What it starts |
 |---------|----------------|
-| `./server` | Tracker on port **5000** (prints the URL to share) |
-| `./client` | Peer UI on port **6001** (defaults to local tracker) |
-| `./client http://IP:5000` | Peer pointed at a remote tracker |
+| `./server` | Tracker on port **5000** (prints the IP/URL to share) |
+| `./client <IP>` | Peer UI on **6001** → tracker at that IP (port 5000) |
+| `./client <IP>:5000` | Same, with an explicit tracker port |
 
 Windows: `server.bat` / `client.bat` (same arguments).
 
