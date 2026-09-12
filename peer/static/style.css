@@ -128,7 +128,89 @@ img {
 }
 
 .search-bar {
-  margin: 0 0 1.25rem;
+  margin: 0;
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.browse-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin: 0 0 0.5rem;
+}
+
+.browse-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-left: auto;
+}
+
+.sort-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.sort-label {
+  white-space: nowrap;
+}
+
+#browse-sort {
+  appearance: none;
+  background: var(--bg-elevated)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23a3a3a3' d='M1 1l5 5 5-5'/%3E%3C/svg%3E")
+    no-repeat right 0.7rem center;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  min-width: 9.5rem;
+}
+
+#browse-sort:focus {
+  outline: none;
+  border-color: rgba(124, 58, 237, 0.55);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.view-toggle {
+  display: inline-flex;
+  padding: 0.2rem;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  gap: 0.15rem;
+}
+
+.view-btn {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  padding: 0.45rem 0.85rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.view-btn:hover {
+  color: var(--text-primary);
+}
+
+.view-btn.is-active {
+  background: var(--accent-soft);
+  color: var(--text-primary);
 }
 
 .search-field {
@@ -203,14 +285,15 @@ img {
 }
 
 .search-meta {
-  margin: 0.55rem 0 0;
+  margin: 0 0 1rem;
   min-height: 1.25rem;
   color: var(--text-muted);
   font-size: 0.9rem;
 }
 
 .card-title mark,
-.card h2 mark {
+.card h2 mark,
+.list-name mark {
   background: rgba(124, 58, 237, 0.35);
   color: inherit;
   border-radius: 3px;
@@ -225,6 +308,111 @@ img {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 1.1rem;
+}
+
+.file-list-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+.file-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.file-table th,
+.file-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.file-table thead th {
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+}
+
+.file-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.file-table tbody tr:hover td {
+  background: rgba(124, 58, 237, 0.06);
+}
+
+.file-table .col-name {
+  font-weight: 550;
+  max-width: 28rem;
+}
+
+.file-table .col-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.file-table .mono {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  color: var(--text-muted);
+}
+
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.th-sort:hover,
+.th-sort.is-active {
+  color: var(--text-primary);
+}
+
+.sort-ind {
+  display: inline-block;
+  min-width: 0.85em;
+  color: var(--accent);
+  font-size: 0.95em;
+}
+
+.btn-compact {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+  border-radius: 10px;
+}
+
+@media (max-width: 720px) {
+  .browse-controls {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+  }
+
+  .file-table th,
+  .file-table td {
+    padding: 0.65rem 0.75rem;
+  }
 }
 
 .card {

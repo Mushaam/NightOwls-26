@@ -30,6 +30,8 @@ Educational **BitTorrent-style LAN file sharer** for a college network: one cent
 
 **NEXT:** final demo polish only — verify/extend seed + multi-peer launcher (`scripts/run.sh --seed` exists); no new architecture. Pause for human review after changes.
 
+**Recent UX:** browse **card/list views** + schema-driven **sort** (`peer/static/file-catalog.js`).
+
 **Branch:** `step7` (tracks build step naming; Steps 1–7 complete).
 
 ---
@@ -93,7 +95,7 @@ NightOwls-26/
     ├── swarm.py           upload_file / download_file (+ CLI)
     ├── store.py           ChunkStore disk layout
     ├── templates/         index | upload | download
-    └── static/            style.css | script.js
+    └── static/            style.css | script.js | file-catalog.js
 ```
 
 Helpers: `./server` `./client` (or `.bat`) wrap common launches.
@@ -186,10 +188,16 @@ CLI: `python -m peer.swarm upload --path F --data-dir D --peer-port P` · `… d
 
 ## UI notes
 
-- Browse: server-rendered cards from tracker `/files` + **live client search** (`#file-search` in `script.js`): ranks by name/prefix/tokens/id/ext/hash; updates on `input` (IME-safe); `/` focuses, Esc clears; match highlight
+- Browse: server-rendered cards from tracker `/files` + **live client search**
+- **Views:** Cards (default) ↔ List — toggle `#view-toggle`; preference in `localStorage` key `nightowls.browse.view`
+- **Sort:** schema-driven — dropdown `#browse-sort` + clickable list headers; preference `nightowls.browse.sort` (`{field,dir}`)
+- **Catalog schema:** `FILE_FIELDS` in `peer/static/file-catalog.js` — single place to add metadata columns
+  - Add field: (1) `data-*` on `.card` in `index.html` (2) append object to `FILE_FIELDS` with `list` / `sortable` / `searchable`
+  - Optional fields already defined but `list:false`: `hash`, `created` — flip `list:true` to show
+- Search: ranks by name/prefix/tokens/id/ext/hash; IME-safe `input`; `/` focuses, Esc clears; match highlight
 - Upload: drag-drop → `POST /api/upload`
 - Download page: **auto-starts** unless already complete; button = start/retry; poll 1s; peer-count bump CSS (`.live-counter.bump`); `.status.warn` for peer failures
-- Files: `peer/templates/*` `peer/static/script.js` `style.css`
+- Files: `peer/templates/index.html` `peer/static/file-catalog.js` `script.js` `style.css`
 
 ---
 

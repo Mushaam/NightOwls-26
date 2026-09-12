@@ -12,7 +12,7 @@
     />
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   </head>
-  <body>
+  <body class="view-card">
     <div class="shell">
       <header class="topbar">
         <a class="brand" href="{{ url_for('home') }}">
@@ -39,25 +39,37 @@
       {% endif %}
 
       {% if files %}
-      <div class="search-bar" role="search">
-        <label class="visually-hidden" for="file-search">Search files</label>
-        <div class="search-field">
-          <span class="search-icon" aria-hidden="true"></span>
-          <input
-            type="search"
-            id="file-search"
-            name="q"
-            placeholder="Search by name, extension, id, or hash…"
-            autocomplete="off"
-            spellcheck="false"
-            enterkeyhint="search"
-          />
-          <button type="button" class="search-clear" id="file-search-clear" hidden aria-label="Clear search">
-            Clear
-          </button>
+      <div class="browse-toolbar">
+        <div class="search-bar" role="search">
+          <label class="visually-hidden" for="file-search">Search files</label>
+          <div class="search-field">
+            <span class="search-icon" aria-hidden="true"></span>
+            <input
+              type="search"
+              id="file-search"
+              name="q"
+              placeholder="Search by name, extension, id, or hash…"
+              autocomplete="off"
+              spellcheck="false"
+              enterkeyhint="search"
+            />
+            <button type="button" class="search-clear" id="file-search-clear" hidden aria-label="Clear search">
+              Clear
+            </button>
+          </div>
         </div>
-        <p class="search-meta" id="file-search-meta" aria-live="polite"></p>
+        <div class="browse-controls">
+          <label class="sort-control" for="browse-sort">
+            <span class="sort-label">Sort</span>
+            <select id="browse-sort" aria-label="Sort files"></select>
+          </label>
+          <div class="view-toggle" id="view-toggle" role="group" aria-label="View mode">
+            <button type="button" class="view-btn is-active" data-view="card" aria-pressed="true">Cards</button>
+            <button type="button" class="view-btn" data-view="list" aria-pressed="false">List</button>
+          </div>
+        </div>
       </div>
+      <p class="search-meta" id="file-search-meta" aria-live="polite"></p>
 
       <div class="grid" id="file-grid">
         {% for f in files %}
@@ -67,9 +79,11 @@
           data-name="{{ f.filename }}"
           data-hash="{{ f.file_hash or '' }}"
           data-size="{{ f.size_label }}"
+          data-size-bytes="{{ f.file_size or 0 }}"
           data-seeders="{{ f.seeder_count }}"
           data-chunks="{{ f.chunk_count }}"
           data-ext="{{ (f.filename.rsplit('.', 1)[1] if '.' in f.filename else '')|lower }}"
+          data-created="{{ f.created_at or '' }}"
         >
           <div class="card-art" aria-hidden="true"></div>
           <h2 class="card-title">{{ f.filename }}</h2>
@@ -88,6 +102,11 @@
         </article>
         {% endfor %}
       </div>
+
+      <div class="file-list-wrap" id="file-list-wrap" hidden>
+        <table class="file-table" id="file-table"></table>
+      </div>
+
       <div class="empty search-empty" id="file-search-empty" hidden>
         <p>No files match your search.</p>
         <p><button type="button" class="btn btn-ghost" id="file-search-reset">Clear search</button></p>
@@ -100,5 +119,6 @@
       {% endif %}
     </div>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="{{ url_for('static', filename='file-catalog.js') }}"></script>
   </body>
 </html>
