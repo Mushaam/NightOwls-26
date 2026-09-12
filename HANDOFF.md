@@ -4,6 +4,8 @@
 **Project:** Decentralized LAN file-sharing (BitTorrent-style tracker + peers)  
 **Workspace:** `/home/mushaam/Desktop/cc/NightOwls-26`
 
+> **AI agents:** start with [`AGENTS.md`](./AGENTS.md) (dense vision + architecture + APIs + next step). This file is the step-by-step build log.
+
 This document is the source of truth for resuming work after a context/token reset. Follow the **BUILD ORDER**; do not skip ahead. Pause after each step for human review unless the user says otherwise.
 
 **Maintainers:** Update this file after **every** completed BUILD ORDER step.
