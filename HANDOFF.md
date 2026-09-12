@@ -1,6 +1,6 @@
 # NightOwls-26 — Build Handoff Report
 
-**Last updated:** 2026-09-12 (after Step 6)  
+**Last updated:** 2026-09-12 (after Step 7)  
 **Project:** Decentralized LAN file-sharing (BitTorrent-style tracker + peers)  
 **Workspace:** `/home/mushaam/Desktop/cc/NightOwls-26`
 
@@ -59,7 +59,7 @@ Flask tracker + Flask peer nodes that chunk files (256 KB), hash with SHA-256, e
 | GET | `/api/files` | **Done (Step 6)** |
 | POST | `/api/upload` | **Done (Step 6)** — multipart |
 | POST | `/api/download/<file_id>` | **Done (Step 6)** — background thread |
-| GET | `/progress/<file_id>` | **Stub working (Step 6)** — polish in Step 7 |
+| GET | `/progress/<file_id>` | **Done (Step 7)** — stable contract + warnings |
 | CLI | `python -m peer.swarm upload\|download` | Done (Steps 4–5) |
 
 ---
@@ -74,7 +74,7 @@ Flask tracker + Flask peer nodes that chunk files (256 KB), hash with SHA-256, e
 | 4 | Peer download logic (manifest → fetch → verify → reassemble) | **DONE** |
 | 5 | Peer upload/seed logic (chunk + hash + register with tracker) | **DONE** |
 | 6 | CRED/Spotify frontend (templates + CSS) | **DONE** |
-| 7 | Polling progress bars (`fetch` every 1s → `/progress/<file_id>`) | **NEXT** (basic polling already present; polish) |
+| 7 | Polling progress bars (`fetch` every 1s → `/progress/<file_id>`) | **DONE** |
 
 ### Demo requirements (keep in mind while building)
 
@@ -184,34 +184,29 @@ Upload on peer 6001 → browse/download on peer 6002.
 
 ---
 
-## UI notes (Step 6)
+## UI notes (Steps 6–7)
 
 - Theme: `--bg-primary: #0d0d0d`, `--accent: #7c3aed`, Inter, card grid, hover lift
 - Browse: server-rendered cards from tracker `/files`
 - Upload: drag-drop → `POST /api/upload` (multipart) → swarm `upload_file`
-- Download: page → `POST /api/download/<id>` starts background thread → JS polls `/progress/<id>` every 1s
+- Download: page auto-starts → `POST /api/download/<id>` background thread → JS polls `/progress/<id>` every 1s
 - Progress store: in-memory `app.config["DOWNLOADS"]` + local chunk counts from `ChunkStore`
+- `/progress/<file_id>` always returns: `status`, `percent`, `chunks_have`, `chunks_total`, `peers_known`, `path`, `error` (+ optional `warning`)
+- Mid-download peer loss: swarm emits `no_peers` / `chunk_failed` → UI shows amber warning, keeps polling
+- Peer count: live bump animation when `peers_known` changes
 
 ---
 
 ## Next step instructions (for the next harness)
 
-### Step 7 — Progress polling polish — **DO THIS NEXT**
+### Final polish — **DO THIS NEXT** (optional demo niceties)
 
-Basic 1s polling already works. Step 7 should harden/finish it:
+Steps 1–7 are complete. Remaining demo polish:
 
-1. Ensure `/progress/<file_id>` always returns stable fields:
-   `status`, `percent`, `chunks_have`, `chunks_total`, `peers_known`, `path`, `error`
-2. Live peer-count animation / clearer “X% complete, fetching from N peers” copy (already mostly there)
-3. Handle mid-download peer failure gracefully in UI messaging
-4. Optional: auto-start download when opening `/download/<id>`
-5. **Update this HANDOFF.md**, then pause
-
-### Final polish
-
-- Seed script for 2–3 dummy files (wrap `peer.swarm upload`).
-- Multi-peer localhost demo (5000 + 6001/6002/6003).
-- Prefer `debug=False` / no reloader for tracker in demos (port conflicts).
+1. Seed script for 2–3 dummy files (wrap `peer.swarm upload`) — check `scripts/` first; may already exist.
+2. Multi-peer localhost demo (5000 + 6001/6002/6003) — see `scripts/run.sh`.
+3. Prefer `debug=False` / no reloader for tracker in demos (port conflicts).
+4. **Update this HANDOFF.md**, then pause
 
 ---
 
@@ -234,9 +229,12 @@ Basic 1s polling already works. Step 7 should harden/finish it:
 | `POST /api/upload` | 201 — file registered + stored |
 | Index shows uploaded card | OK |
 | Peer2 `POST /api/download/1` + `/progress/1` | complete @ 100%, hash match |
+| Step 7 `/progress` idle contract | OK — all 7 fields present; `error`/`path` null |
+| Step 7 warning + error jobs | OK — `warning` surfaced; `error` status preserved |
+| Download UI auto-start + warn class | OK (script.js + style.css) |
 
 ---
 
 ## Resume command for next agent
 
-> Read `HANDOFF.md`. Steps 1–6 are done. Implement **Step 7 only** (polish progress polling / `/progress/<file_id>` contract and download UX). Then final demo seed script if time. Update `HANDOFF.md`, then pause for review.
+> Read `HANDOFF.md`. Steps 1–7 are done. Do **final polish only** if needed (seed/demo scripts, multi-peer run). Update `HANDOFF.md`, then pause for review.

@@ -239,6 +239,16 @@ def api_upload():
     return jsonify(result), 201
 
 
+_ACTIVE_DOWNLOAD = {
+    "starting",
+    "running",
+    "chunk_ok",
+    "skip_existing",
+    "no_peers",
+    "chunk_failed",
+}
+
+
 def _set_progress(file_id: int, **fields) -> None:
     downloads = app.config["DOWNLOADS"]
     current = dict(downloads.get(file_id) or {})
@@ -251,19 +261,48 @@ def _run_download(file_id: int) -> None:
     store: ChunkStore = app.config["STORE"]
 
     def on_progress(info: dict) -> None:
-        _set_progress(
-            file_id,
-            status=info.get("status", "running"),
-            chunks_have=info.get("chunks_have", 0),
-            chunks_total=info.get("chunks_total", 0),
-            percent=info.get("percent", 0),
-            peers_known=info.get("peers_known", 0),
-            filename=info.get("filename"),
-            path=info.get("path"),
-        )
+        status = info.get("status", "running")
+        warning = None
+        if status == "no_peers":
+            warning = (
+                f"No seeders for chunk {info.get('chunk_index')}; "
+                "will keep trying other chunks / refresh peer map."
+            )
+        elif status == "chunk_failed":
+            errs = info.get("errors") or []
+            hint = "; ".join(errs[:2]) if errs else "peer unreachable"
+            warning = (
+                f"Peer failure on chunk {info.get('chunk_index')} ({hint}). "
+                "Trying remaining seeders…"
+            )
+        fields = {
+            "status": status,
+            "chunks_have": info.get("chunks_have", 0),
+            "chunks_total": info.get("chunks_total", 0),
+            "percent": info.get("percent", 0),
+            "peers_known": info.get("peers_known", 0),
+            "filename": info.get("filename"),
+            "path": info.get("path"),
+            "error": None,
+        }
+        if warning:
+            fields["warning"] = warning
+        elif status in {"chunk_ok", "skip_existing", "complete"}:
+            fields["warning"] = None
+        _set_progress(file_id, **fields)
 
     try:
-        _set_progress(file_id, status="starting", percent=0, error=None)
+        _set_progress(
+            file_id,
+            status="starting",
+            percent=0,
+            chunks_have=0,
+            chunks_total=0,
+            peers_known=0,
+            path=None,
+            error=None,
+            warning=None,
+        )
         result = download_file(
             file_id=file_id,
             tracker_url=app.config["TRACKER_URL"],
@@ -279,19 +318,31 @@ def _run_download(file_id: int) -> None:
             path=result.get("path"),
             chunks_have=result.get("chunk_count"),
             chunks_total=result.get("chunk_count"),
+            error=None,
+            warning=None,
         )
     except (DownloadError, urllib.error.URLError, Exception) as exc:  # noqa: BLE001
-        _set_progress(file_id, status="error", error=str(exc))
+        _set_progress(file_id, status="error", error=str(exc), warning=None)
 
 
 @app.post("/api/download/<int:file_id>")
 def api_download(file_id: int):
     downloads = app.config["DOWNLOADS"]
     existing = downloads.get(file_id) or {}
-    if existing.get("status") in {"starting", "running", "chunk_ok", "skip_existing"}:
+    if existing.get("status") in _ACTIVE_DOWNLOAD:
         return jsonify({"status": "already_running", "file_id": file_id}), 202
 
-    _set_progress(file_id, status="starting", percent=0, error=None)
+    _set_progress(
+        file_id,
+        status="starting",
+        percent=0,
+        chunks_have=0,
+        chunks_total=0,
+        peers_known=0,
+        path=None,
+        error=None,
+        warning=None,
+    )
     thread = threading.Thread(target=_run_download, args=(file_id,), daemon=True)
     thread.start()
     return jsonify({"status": "started", "file_id": file_id}), 202
@@ -299,7 +350,7 @@ def api_download(file_id: int):
 
 @app.get("/progress/<int:file_id>")
 def progress(file_id: int):
-    """Progress snapshot for UI polling."""
+    """Progress snapshot for UI polling (stable Step 7 contract)."""
     store: ChunkStore = app.config["STORE"]
     data_dir = Path(app.config["DATA_DIR"]).resolve()
     job = dict(app.config["DOWNLOADS"].get(file_id) or {})
@@ -316,7 +367,6 @@ def progress(file_id: int):
         filename = filename or meta.get("filename")
         file_size = int(meta.get("file_size") or 0)
         file_hash = meta.get("file_hash")
-        job.setdefault("filename", filename)
     except Exception:  # noqa: BLE001
         pass
 
@@ -330,34 +380,52 @@ def progress(file_id: int):
             )
         return store.has_chunk(file_id, i)
 
+    chunks_have = int(job.get("chunks_have") or 0)
     if chunks_total:
-        have = sum(1 for i in range(chunks_total) if chunk_ok(i))
-        job["chunks_have"] = have
-        job["chunks_total"] = chunks_total
-        if job.get("status") not in {"error", "complete", "starting"}:
-            job["percent"] = round(100.0 * have / chunks_total, 1)
+        chunks_have = sum(1 for i in range(chunks_total) if chunk_ok(i))
+
+    status = job.get("status") or "idle"
+    percent = float(job.get("percent") or 0)
+    if chunks_total and status not in {"error", "complete", "starting"}:
+        percent = round(100.0 * chunks_have / chunks_total, 1)
 
     # Only advertise a save path when the local copy is verified complete.
     verified = store.is_verified_complete(file_id, expected_file_hash=file_hash)
     complete = store._complete_path(file_id) if verified else None
-    if complete is not None and job.get("status") != "error":
-        job["path"] = str(complete.resolve())
-        if job.get("status") in {None, "idle"} and chunks_total and job.get("chunks_have") == chunks_total:
-            job["status"] = "complete"
-            job["percent"] = 100.0
+    path = None
+    if complete is not None and status != "error":
+        path = str(complete.resolve())
+        if status in {"idle", None} and chunks_total and chunks_have == chunks_total:
+            status = "complete"
+            percent = 100.0
+    elif status == "complete":
+        filename = filename or f"file_{file_id}"
+        path = job.get("path") or str(
+            (data_dir / "complete" / str(file_id) / filename).resolve()
+        )
 
-    filename = filename or f"file_{file_id}"
-    job.setdefault("status", "idle")
-    job.setdefault("percent", 0)
-    job.setdefault("chunks_have", 0)
-    job.setdefault("chunks_total", chunks_total)
-    job.setdefault("peers_known", 0)
-    if job.get("status") == "complete" and not job.get("path"):
-        job["path"] = str((data_dir / "complete" / str(file_id) / filename).resolve())
-    job["data_dir"] = str(data_dir)
-    job["downloads_dir"] = str(data_dir / "complete")
-    job["file_id"] = file_id
-    return jsonify(job)
+    if status == "complete":
+        percent = 100.0
+        if chunks_total:
+            chunks_have = chunks_total
+
+    # Stable contract fields always present (null when unknown / N/A).
+    return jsonify(
+        {
+            "file_id": file_id,
+            "status": status or "idle",
+            "percent": percent,
+            "chunks_have": chunks_have,
+            "chunks_total": chunks_total,
+            "peers_known": int(job.get("peers_known") or 0),
+            "path": path,
+            "error": job.get("error"),
+            "warning": job.get("warning"),
+            "filename": filename,
+            "data_dir": str(data_dir),
+            "downloads_dir": str(data_dir / "complete"),
+        }
+    )
 
 
 if __name__ == "__main__":

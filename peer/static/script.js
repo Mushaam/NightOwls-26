@@ -4,7 +4,7 @@
   function setStatus(el, message, kind) {
     if (!el) return;
     el.textContent = message;
-    el.classList.remove("ok", "err");
+    el.classList.remove("ok", "err", "warn");
     if (kind) el.classList.add(kind);
   }
 
@@ -18,6 +18,10 @@
       i += 1;
     }
     return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+  }
+
+  function plural(n, one, many) {
+    return Number(n) === 1 ? one : many;
   }
 
   /* ---- Upload page ---- */
@@ -103,11 +107,23 @@
   const textEl = $("#progress-text");
   const statusEl = $("#download-status");
   const peerCountEl = $("#peer-count");
+  const alreadyComplete = panel.getAttribute("data-already-complete") === "1";
   let pollTimer = null;
+  let lastPeers = null;
+  let downloadActive = false;
 
   const savePathEl = $("#save-path");
   const saveBox = $("#save-box");
   const expectedPath = panel.getAttribute("data-expected-path") || "";
+
+  const ACTIVE = new Set([
+    "starting",
+    "running",
+    "chunk_ok",
+    "skip_existing",
+    "no_peers",
+    "chunk_failed",
+  ]);
 
   function showSavePath(path) {
     if (!savePathEl || !path) return;
@@ -115,36 +131,93 @@
     if (saveBox) saveBox.classList.add("ready");
   }
 
+  function bumpPeerCount(n) {
+    if (!peerCountEl || n == null) return;
+    const value = String(n);
+    if (peerCountEl.textContent !== value) {
+      peerCountEl.textContent = value;
+      peerCountEl.classList.remove("bump");
+      // Force reflow so the animation retriggers when peers change.
+      void peerCountEl.offsetWidth;
+      peerCountEl.classList.add("bump");
+    }
+    lastPeers = n;
+  }
+
+  function statusCopy(data) {
+    const pct = Number(data.percent || 0);
+    const peers = data.peers_known ?? 0;
+    const have = data.chunks_have || 0;
+    const total = data.chunks_total || "?";
+    const status = data.status || "idle";
+
+    if (status === "complete") {
+      return { text: "Complete — file saved to the path above.", kind: "ok" };
+    }
+    if (status === "error") {
+      return {
+        text: data.error || "Download failed. Other peers may still have chunks — try again.",
+        kind: "err",
+      };
+    }
+    if (data.warning || status === "no_peers" || status === "chunk_failed") {
+      const warn =
+        data.warning ||
+        "A peer dropped mid-download. Retrying other seeders…";
+      return {
+        text: `${pct}% complete · ${warn}`,
+        kind: "warn",
+      };
+    }
+    if (status === "starting") {
+      return { text: "Starting swarm download…", kind: null };
+    }
+    if (status === "idle") {
+      return {
+        text: alreadyComplete
+          ? "Already on disk — open the path above, or download again to refresh."
+          : "Ready — download will start automatically, or click Start download.",
+        kind: null,
+      };
+    }
+    return {
+      text: `${pct}% complete, fetching from ${peers} ${plural(peers, "peer", "peers")} (${have}/${total} chunks)`,
+      kind: null,
+    };
+  }
+
   function applyProgress(data) {
     const pct = Number(data.percent || 0);
+    const status = data.status || "idle";
     if (bar) bar.style.width = `${pct}%`;
     if (percentEl) percentEl.textContent = `${pct}%`;
     if (textEl) {
-      textEl.textContent = `${data.chunks_have || 0}/${data.chunks_total || "?"} chunks · ${data.status || ""}`;
+      const peers = data.peers_known ?? 0;
+      textEl.textContent = `${data.chunks_have || 0}/${data.chunks_total || "?"} chunks · ${pct}% · ${peers} ${plural(peers, "peer", "peers")}`;
     }
-    if (peerCountEl && data.peers_known != null) {
-      peerCountEl.textContent = String(data.peers_known);
-    }
+    bumpPeerCount(data.peers_known);
+
     if (data.path) {
       showSavePath(data.path);
     }
-    if (data.status === "complete") {
-      const saved = data.path || expectedPath || "local store";
-      showSavePath(saved);
-      setStatus(statusEl, `Complete — file saved to the path above.`, "ok");
+
+    const copy = statusCopy(data);
+    setStatus(statusEl, copy.text, copy.kind);
+
+    if (status === "complete") {
+      showSavePath(data.path || expectedPath || "local store");
       stopPoll();
+      downloadActive = false;
       startBtn.disabled = false;
       startBtn.textContent = "Download again";
-    } else if (data.status === "error") {
-      setStatus(statusEl, data.error || "Download failed", "err");
+    } else if (status === "error") {
       stopPoll();
+      downloadActive = false;
       startBtn.disabled = false;
-    } else {
-      setStatus(
-        statusEl,
-        `${pct}% complete, fetching from ${data.peers_known ?? "?"} peers`,
-        null
-      );
+      startBtn.textContent = "Retry download";
+    } else if (ACTIVE.has(status)) {
+      startBtn.disabled = true;
+      startBtn.textContent = "Downloading…";
     }
   }
 
@@ -160,19 +233,26 @@
       const res = await fetch(`/progress/${fileId}`);
       const data = await res.json();
       applyProgress(data);
+      return data;
     } catch (err) {
-      setStatus(statusEl, `Progress poll failed: ${err.message || err}`, "err");
+      setStatus(
+        statusEl,
+        `Progress poll failed: ${err.message || err}. Retrying…`,
+        "warn"
+      );
+      return null;
     }
   }
 
   function startPoll() {
     stopPoll();
     pollOnce();
-    // Step 7 will keep this 1s polling; present now so the download UI works.
     pollTimer = setInterval(pollOnce, 1000);
   }
 
-  startBtn.addEventListener("click", async () => {
+  async function startDownload() {
+    if (downloadActive) return;
+    downloadActive = true;
     startBtn.disabled = true;
     startBtn.textContent = "Downloading…";
     setStatus(statusEl, "Starting swarm download…");
@@ -182,9 +262,29 @@
       if (!res.ok) throw new Error(data.error || "Could not start download");
       startPoll();
     } catch (err) {
+      downloadActive = false;
       setStatus(statusEl, err.message || String(err), "err");
       startBtn.disabled = false;
       startBtn.textContent = "Start download";
     }
+  }
+
+  startBtn.addEventListener("click", () => {
+    startDownload();
   });
+
+  // Step 7: hydrate from /progress, then auto-start if not already complete.
+  (async () => {
+    const snapshot = await pollOnce();
+    if (!snapshot) return;
+    if (ACTIVE.has(snapshot.status)) {
+      downloadActive = true;
+      startPoll();
+      return;
+    }
+    if (snapshot.status === "complete" || alreadyComplete) {
+      return;
+    }
+    startDownload();
+  })();
 })();

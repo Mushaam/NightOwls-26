@@ -35,6 +35,7 @@
         data-file-id="{{ file_id }}"
         data-expected-path="{{ expected_path }}"
         data-downloads-dir="{{ downloads_dir }}"
+        data-already-complete="{{ '1' if existing_path else '0' }}"
       >
         <div class="meta">
           <span id="size-label">{{ size_label }}</span>
@@ -45,7 +46,7 @@
           >
         </div>
 
-        <div class="save-box" id="save-box">
+        <div class="save-box{% if existing_path %} ready{% endif %}" id="save-box">
           <div class="save-label">Save location</div>
           <code class="save-path" id="save-path">{{ existing_path or expected_path }}</code>
           <p class="save-hint">
@@ -56,23 +57,25 @@
 
         <div class="progress-wrap">
           <div class="progress-label">
-            <span id="progress-text">Ready</span>
-            <span id="progress-percent">0%</span>
+            <span id="progress-text">{% if existing_path %}Already complete{% else %}Starting…{% endif %}</span>
+            <span id="progress-percent">{% if existing_path %}100%{% else %}0%{% endif %}</span>
           </div>
           <div class="progress-track" aria-hidden="true">
-            <div class="progress-bar" id="progress-bar"></div>
+            <div class="progress-bar" id="progress-bar" style="{% if existing_path %}width: 100%{% endif %}"></div>
           </div>
         </div>
 
-        <div class="status" id="download-status">
+        <div class="status{% if existing_path %} ok{% endif %}" id="download-status">
           {% if existing_path %}
           Already on disk — open the path above, or download again to refresh.
           {% else %}
-          Click Start download. When finished, the full file path will show above.
+          Auto-starting download. Progress updates every second from /progress.
           {% endif %}
         </div>
         <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap">
-          <button type="button" class="btn btn-primary" id="start-download">Start download</button>
+          <button type="button" class="btn btn-primary" id="start-download">
+            {% if existing_path %}Download again{% else %}Start download{% endif %}
+          </button>
           <a class="btn btn-ghost" href="{{ url_for('home') }}">Back to browse</a>
         </div>
       </section>

@@ -423,7 +423,7 @@ For discovery, yes — if the tracker is down, new peers cannot learn the catalo
 No. Each peer needs a unique `PEER_PORT` (and usually its own `PEER_DATA_DIR`).
 
 **Where is Step 7 / polish?**  
-Basic 1-second progress polling is already in the UI. See `HANDOFF.md` for remaining polish and demo seed-script notes.
+Step 7 (progress polling polish) is done. See `HANDOFF.md` for optional final demo polish (seed scripts / multi-peer).
 
 **Is this production BitTorrent?**  
 No. It is an educational LAN demo: HTTP chunks, Flask, SQLite — not the BitTorrent wire protocol.

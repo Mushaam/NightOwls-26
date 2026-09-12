@@ -283,6 +283,11 @@ img {
   border-color: rgba(239, 68, 68, 0.35);
 }
 
+.status.warn {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
 .progress-wrap {
   margin-top: 1.25rem;
 }
@@ -319,6 +324,12 @@ img {
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
   font-weight: 650;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.live-counter.bump {
+  color: var(--accent);
+  animation: peer-bump 0.45s ease;
 }
 
 .live-counter::before {
@@ -329,6 +340,18 @@ img {
   background: var(--accent);
   box-shadow: 0 0 10px var(--accent);
   animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes peer-bump {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 @keyframes pulse {
