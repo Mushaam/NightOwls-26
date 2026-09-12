@@ -55,11 +55,119 @@ def init_db(db_path: str | Path = DEFAULT_DB_PATH) -> None:
                 FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE,
                 FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                action TEXT NOT NULL,
+                actor TEXT,
+                detail TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at DESC);
             """
         )
 
 
-def register_peer(conn: sqlite3.Connection, ip: str, port: int) -> dict[str, Any]:
+def log_audit(
+    conn: sqlite3.Connection,
+    action: str,
+    *,
+    actor: str | None = None,
+    detail: str | None = None,
+) -> None:
+    """Append one audit row. Caller commits (or shares an outer transaction)."""
+    conn.execute(
+        "INSERT INTO audit_log (action, actor, detail) VALUES (?, ?, ?)",
+        (action, actor, detail),
+    )
+
+
+def list_audit(conn: sqlite3.Connection, limit: int = 200) -> list[dict[str, Any]]:
+    limit = max(1, min(int(limit), 5000))
+    rows = conn.execute(
+        "SELECT id, created_at, action, actor, detail FROM audit_log "
+        "ORDER BY id DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def list_peers(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT p.id, p.ip, p.port, p.registered_at,
+               COUNT(pc.chunk_index) AS chunk_claims
+        FROM peers p
+        LEFT JOIN peer_chunks pc ON pc.peer_id = p.id
+        GROUP BY p.id
+        ORDER BY p.id
+        """
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def portal_stats(conn: sqlite3.Connection) -> dict[str, int]:
+    files = conn.execute("SELECT COUNT(*) AS n FROM files").fetchone()["n"]
+    peers = conn.execute("SELECT COUNT(*) AS n FROM peers").fetchone()["n"]
+    claims = conn.execute("SELECT COUNT(*) AS n FROM peer_chunks").fetchone()["n"]
+    audits = conn.execute("SELECT COUNT(*) AS n FROM audit_log").fetchone()["n"]
+    return {
+        "files": files,
+        "peers": peers,
+        "chunk_claims": claims,
+        "audit_events": audits,
+    }
+
+
+def rename_file(conn: sqlite3.Connection, file_id: int, filename: str) -> dict[str, Any]:
+    name = (filename or "").strip()
+    if not name:
+        raise ValueError("filename required")
+    row = conn.execute("SELECT id, filename FROM files WHERE id = ?", (file_id,)).fetchone()
+    if not row:
+        raise ValueError(f"Unknown file_id: {file_id}")
+    old = row["filename"]
+    conn.execute("UPDATE files SET filename = ? WHERE id = ?", (name, file_id))
+    log_audit(
+        conn,
+        "inventory_rename",
+        actor="portal",
+        detail=f"file_id={file_id} '{old}' -> '{name}'",
+    )
+    conn.commit()
+    meta = get_file(conn, file_id)
+    if not meta:
+        raise ValueError(f"Unknown file_id: {file_id}")
+    return meta
+
+
+def delete_file(conn: sqlite3.Connection, file_id: int) -> dict[str, Any]:
+    row = conn.execute("SELECT * FROM files WHERE id = ?", (file_id,)).fetchone()
+    if not row:
+        raise ValueError(f"Unknown file_id: {file_id}")
+    info = dict(row)
+    conn.execute("DELETE FROM files WHERE id = ?", (file_id,))
+    log_audit(
+        conn,
+        "inventory_delete",
+        actor="portal",
+        detail=(
+            f"file_id={file_id} name={info.get('filename')} "
+            f"hash={info.get('file_hash')}"
+        ),
+    )
+    conn.commit()
+    return info
+
+
+def register_peer(
+    conn: sqlite3.Connection,
+    ip: str,
+    port: int,
+    *,
+    audit: bool = True,
+) -> dict[str, Any]:
     conn.execute(
         "INSERT INTO peers (ip, port) VALUES (?, ?) "
         "ON CONFLICT(ip, port) DO UPDATE SET registered_at = datetime('now')",
@@ -69,6 +177,8 @@ def register_peer(conn: sqlite3.Connection, ip: str, port: int) -> dict[str, Any
         "SELECT id, ip, port, registered_at FROM peers WHERE ip = ? AND port = ?",
         (ip, port),
     ).fetchone()
+    if audit:
+        log_audit(conn, "peer_register", actor=f"{ip}:{port}", detail=f"peer_id={row['id']}")
     conn.commit()
     return dict(row)
 
@@ -84,7 +194,7 @@ def upload_metadata(
     *,
     register_as_seeder: bool = True,
 ) -> dict[str, Any]:
-    peer = register_peer(conn, peer_ip, peer_port)
+    peer = register_peer(conn, peer_ip, peer_port, audit=False)
 
     existing = conn.execute(
         "SELECT id FROM files WHERE file_hash = ?", (file_hash,)
@@ -115,6 +225,16 @@ def upload_metadata(
             "VALUES (?, ?, ?)",
             [(peer["id"], file_id, i) for i in range(len(chunk_hashes))],
         )
+    action = "file_update" if existing else "file_register"
+    log_audit(
+        conn,
+        action,
+        actor=f"{peer_ip}:{peer_port}",
+        detail=(
+            f"file_id={file_id} name={filename} size={file_size} "
+            f"chunks={len(chunk_hashes)} seeder={register_as_seeder}"
+        ),
+    )
     conn.commit()
 
     return get_file(conn, file_id)
@@ -192,7 +312,7 @@ def peer_has_chunk(
     file_id: int,
     chunk_index: int,
 ) -> dict[str, Any]:
-    peer = register_peer(conn, peer_ip, peer_port)
+    peer = register_peer(conn, peer_ip, peer_port, audit=False)
     file_row = conn.execute("SELECT id FROM files WHERE id = ?", (file_id,)).fetchone()
     if not file_row:
         raise ValueError(f"Unknown file_id: {file_id}")

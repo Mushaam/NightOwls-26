@@ -1,0 +1,78 @@
+{% extends "portal_base.html" %}
+{% block title %}Inventory{% endblock %}
+{% block body %}
+<h1>Inventory</h1>
+<p class="muted">
+  Central file catalog. Delete removes the tracker entry (peers keep local bytes).
+  <a href="{{ url_for('export_inventory_csv') }}">Export CSV</a>
+</p>
+
+{% if files %}
+<table>
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Name</th>
+      <th>Size</th>
+      <th>Chunks</th>
+      <th>Seeders</th>
+      <th>Hash</th>
+      <th>Added</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for f in files %}
+    <tr>
+      <td class="mono">{{ f.id }}</td>
+      <td>
+        <form class="inline" method="post" action="{{ url_for('portal_rename', file_id=f.id) }}">
+          <input type="text" name="filename" value="{{ f.filename }}" required />
+          <button type="submit">Rename</button>
+        </form>
+      </td>
+      <td class="mono">{{ f.file_size }}</td>
+      <td class="mono">{{ f.chunk_count }}</td>
+      <td class="mono">{{ f.seeder_count }}</td>
+      <td class="mono hash">{{ f.file_hash[:12] }}…</td>
+      <td class="mono">{{ f.created_at }}</td>
+      <td>
+        <form
+          method="post"
+          action="{{ url_for('portal_delete', file_id=f.id) }}"
+          onsubmit="return confirm('Remove file #{{ f.id }} from the catalog?');"
+        >
+          <button type="submit" class="danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">Catalog empty.</p>
+{% endif %}
+
+<h2>Registered peers</h2>
+<p class="muted"><a href="{{ url_for('export_peers_csv') }}">Export peers CSV</a></p>
+{% if peers %}
+<table>
+  <thead>
+    <tr><th>ID</th><th>IP</th><th>Port</th><th>Registered</th><th>Claims</th></tr>
+  </thead>
+  <tbody>
+    {% for p in peers %}
+    <tr>
+      <td class="mono">{{ p.id }}</td>
+      <td class="mono">{{ p.ip }}</td>
+      <td class="mono">{{ p.port }}</td>
+      <td class="mono">{{ p.registered_at }}</td>
+      <td class="mono">{{ p.chunk_claims }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No peers registered.</p>
+{% endif %}
+{% endblock %}

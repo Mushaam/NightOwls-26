@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Tracker portal{% endblock %} — NightOwls</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}" />
+  </head>
+  <body>
+    <header class="bar">
+      <strong>NightOwls tracker</strong>
+      <nav>
+        <a href="{{ url_for('portal_home') }}">Home</a>
+        <a href="{{ url_for('portal_inventory') }}">Inventory</a>
+        <a href="{{ url_for('portal_audit') }}">Audit</a>
+      </nav>
+    </header>
+    <main class="wrap">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <ul class="flash">
+        {% for cat, msg in messages %}
+        <li class="{{ cat }}">{{ msg }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% endwith %}
+      {% block body %}{% endblock %}
+    </main>
+  </body>
+</html>

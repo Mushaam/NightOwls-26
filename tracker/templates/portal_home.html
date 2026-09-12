@@ -1,0 +1,46 @@
+{% extends "portal_base.html" %}
+{% block title %}Home{% endblock %}
+{% block body %}
+<h1>Server portal</h1>
+<p class="muted">Minimal ops view for the central catalog. No auth (LAN demo).</p>
+
+<table class="stats">
+  <tr><th>Files</th><td>{{ stats.files }}</td></tr>
+  <tr><th>Peers</th><td>{{ stats.peers }}</td></tr>
+  <tr><th>Chunk claims</th><td>{{ stats.chunk_claims }}</td></tr>
+  <tr><th>Audit events</th><td>{{ stats.audit_events }}</td></tr>
+</table>
+
+<p class="links">
+  <a href="{{ url_for('portal_inventory') }}">Inventory</a>
+  ·
+  <a href="{{ url_for('portal_audit') }}">Audit log</a>
+  ·
+  <a href="{{ url_for('export_inventory_csv') }}">Export inventory CSV</a>
+  ·
+  <a href="{{ url_for('export_audit_csv') }}">Export audit CSV</a>
+  ·
+  <a href="{{ url_for('export_peers_csv') }}">Export peers CSV</a>
+</p>
+
+<h2>Recent audit</h2>
+{% if recent %}
+<table>
+  <thead>
+    <tr><th>When</th><th>Action</th><th>Actor</th><th>Detail</th></tr>
+  </thead>
+  <tbody>
+    {% for e in recent %}
+    <tr>
+      <td class="mono">{{ e.created_at }}</td>
+      <td>{{ e.action }}</td>
+      <td class="mono">{{ e.actor or "—" }}</td>
+      <td>{{ e.detail or "" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No events yet.</p>
+{% endif %}
+{% endblock %}

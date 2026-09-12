@@ -1,0 +1,152 @@
+/* Bare-minimum tracker portal */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font: 14px/1.45 system-ui, sans-serif;
+  color: #111;
+  background: #f4f4f4;
+}
+
+.bar {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  padding: 0.65rem 1rem;
+  background: #111;
+  color: #eee;
+}
+
+.bar nav {
+  display: flex;
+  gap: 0.85rem;
+}
+
+.bar a {
+  color: #ccc;
+  text-decoration: none;
+}
+
+.bar a:hover {
+  color: #fff;
+}
+
+.wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+h1 {
+  font-size: 1.25rem;
+  margin: 0 0 0.35rem;
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin: 1.5rem 0 0.5rem;
+}
+
+.muted {
+  color: #555;
+  margin: 0 0 1rem;
+}
+
+.links {
+  margin: 1rem 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #ccc;
+}
+
+th,
+td {
+  border-bottom: 1px solid #ddd;
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+th {
+  background: #eee;
+  font-weight: 600;
+}
+
+.stats {
+  width: auto;
+  min-width: 220px;
+}
+
+.mono {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+}
+
+.hash {
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inline {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0 0 0.75rem;
+}
+
+input[type="text"],
+input[type="number"] {
+  font: inherit;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid #bbb;
+  min-width: 10rem;
+}
+
+button {
+  font: inherit;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid #888;
+  background: #fafafa;
+  cursor: pointer;
+}
+
+button.danger {
+  border-color: #a33;
+  color: #a33;
+}
+
+.flash {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+.flash li {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #ccc;
+  background: #fff;
+  margin-bottom: 0.35rem;
+}
+
+.flash .ok {
+  border-color: #3a3;
+  color: #163;
+}
+
+.flash .err {
+  border-color: #a33;
+  color: #612;
+}
+
+a {
+  color: #06c;
+}

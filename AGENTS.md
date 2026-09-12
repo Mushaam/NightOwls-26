@@ -30,7 +30,8 @@ Educational **BitTorrent-style LAN file sharer** for a college network: one cent
 
 **NEXT:** final demo polish only — verify/extend seed + multi-peer launcher (`scripts/run.sh --seed` exists); no new architecture. Pause for human review after changes.
 
-**Recent UX:** browse **card/list views** + schema-driven **sort** (`peer/static/file-catalog.js`).
+**Recent UX:** browse **card/list views** + schema-driven **sort** (`peer/static/file-catalog.js`).  
+**Tracker portal:** bare admin UI at `http://<tracker>/portal` — inventory + audit + CSV export.
 
 **Branch:** `step7` (tracks build step naming; Steps 1–7 complete).
 
@@ -88,8 +89,10 @@ NightOwls-26/
 │   └── start_{server,client}.{sh,bat}
 ├── shared/utils.py        CHUNK_SIZE, chunk_file, verify_*, sha256_*
 ├── tracker/
-│   ├── app.py             HTTP API
-│   └── models.py          peers, files, chunks, peer_chunks
+│   ├── app.py             HTTP API + /portal admin UI
+│   ├── models.py          peers, files, chunks, peer_chunks, audit_log
+│   ├── templates/         portal_*.html
+│   └── static/portal.css  bare admin styles
 └── peer/
     ├── app.py             UI + /chunk + /api/* + /progress + DOWNLOADS{}
     ├── swarm.py           upload_file / download_file (+ CLI)
@@ -116,20 +119,31 @@ Helpers: `./server` `./client` (or `.bat`) wrap common launches.
 
 ## Tracker SQLite
 
-`peers(id, ip, port UNIQUE)` · `files(id, filename, file_hash UNIQUE, file_size, chunk_count)` · `chunks(file_id, chunk_index, chunk_hash)` · `peer_chunks(peer_id, file_id, chunk_index)` PK composite.
+`peers(id, ip, port UNIQUE)` · `files(id, filename, file_hash UNIQUE, file_size, chunk_count)` · `chunks(file_id, chunk_index, chunk_hash)` · `peer_chunks(peer_id, file_id, chunk_index)` PK composite · `audit_log(id, created_at, action, actor, detail)`.
 
-Env: `TRACKER_PORT=5000` `TRACKER_DB=tracker/tracker.db`
+Env: `TRACKER_PORT=5000` `TRACKER_DB=tracker/tracker.db` `TRACKER_SECRET` (Flask flash sessions; default dev key)
 
 ### Tracker HTTP
 
 | Method | Path | Body / notes |
 |--------|------|----------------|
-| POST | `/register_peer` | `{ip,port}` |
-| POST | `/upload_metadata` | `{filename,file_hash,file_size,chunk_hashes[],peer_ip,peer_port}` |
+| POST | `/register_peer` | `{ip,port}` · audits `peer_register` |
+| POST | `/upload_metadata` | `{filename,file_hash,file_size,chunk_hashes[],peer_ip,peer_port}` · audits `file_register`/`file_update` |
 | GET | `/files` | list + seeder hints |
 | GET | `/files/<id>` | manifest + `chunk_hashes` |
 | GET | `/peers/<file_id>` | `[{ip,port,chunks:[…]}]` |
-| POST | `/peer_has_chunk` | `{peer_ip,peer_port,file_id,chunk_index}` |
+| POST | `/peer_has_chunk` | `{peer_ip,peer_port,file_id,chunk_index}` · **not** audited (noise) |
+| GET | `/` | redirect → `/portal` |
+| GET | `/portal` | home + stats + recent audit |
+| GET | `/portal/inventory` | catalog table: rename / delete; peer list |
+| POST | `/portal/inventory/<id>/rename` | form `filename` |
+| POST | `/portal/inventory/<id>/delete` | remove file (+cascade chunks/claims) |
+| GET | `/portal/audit` | audit log (`?limit=`) |
+| GET | `/portal/export/inventory.csv` | CSV download |
+| GET | `/portal/export/audit.csv` | CSV download |
+| GET | `/portal/export/peers.csv` | CSV download |
+
+Portal UI is intentionally plain (not peer CRED theme). No auth — LAN demo only.
 
 ---
 
@@ -182,7 +196,7 @@ CLI: `python -m peer.swarm upload --path F --data-dir D --peer-port P` · `… d
 
 **`peer.app.create_app(...)`:** builds store, registers with tracker (unless `register=False`), sets config keys.
 
-**`tracker.models`:** `init_db` `register_peer` `upload_metadata` `list_files` `get_file` `peers_for_file` `peer_has_chunk`
+**`tracker.models`:** `init_db` `register_peer` `upload_metadata` `list_files` `get_file` `peers_for_file` `peer_has_chunk` `log_audit` `list_audit` `list_peers` `portal_stats` `rename_file` `delete_file`
 
 ---
 
@@ -207,6 +221,8 @@ CLI: `python -m peer.swarm upload --path F --data-dir D --peer-port P` · `… d
 cd /home/mushaam/Desktop/cc/NightOwls-26
 # one-shot demo
 ./scripts/run.sh --seed          # :5000 + :6001.. UI http://127.0.0.1:6001
+# tracker portal
+# http://127.0.0.1:5000/portal
 
 # or manual
 TRACKER_DB=/tmp/t.db TRACKER_PORT=5000 .venv/bin/python -c \
