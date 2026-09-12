@@ -1,8 +1,8 @@
 # NightOwls-26 — Build Handoff Report
 
-**Last updated:** 2026-09-12 (after Step 3)  
+**Last updated:** 2026-09-12 (after Step 6)  
 **Project:** Decentralized LAN file-sharing (BitTorrent-style tracker + peers)  
-**Workspace:** `/home/harsh/Desktop/CC/NightOwls-26`
+**Workspace:** `/home/mushaam/Desktop/cc/NightOwls-26`
 
 This document is the source of truth for resuming work after a context/token reset. Follow the **BUILD ORDER**; do not skip ahead. Pause after each step for human review unless the user says otherwise.
 
@@ -26,7 +26,7 @@ Flask tracker + Flask peer nodes that chunk files (256 KB), hash with SHA-256, e
 | DB | SQLite |
 | Env | `.venv/` (required on Kali — PEP 668); `requirements.txt` pins `Flask==3.1.3` |
 
-**UI direction:** deep black/charcoal, one vibrant accent (e.g. electric purple `#7c3aed`), bold rounded sans, card grid, CSS variables, Google Fonts (Inter or similar). No React/Vue.
+**UI direction:** deep black/charcoal, accent `#7c3aed`, Inter via Google Fonts, card grid, CSS variables, 12–16px radius.
 
 ---
 
@@ -43,18 +43,24 @@ Flask tracker + Flask peer nodes that chunk files (256 KB), hash with SHA-256, e
 | POST | `/register_peer` | Done |
 | POST | `/upload_metadata` | Done |
 | GET | `/files` | Done |
-| GET | `/files/<id>` | Done (extra; useful for manifest) |
+| GET | `/files/<id>` | Done |
 | GET | `/peers/<file_id>` | Done |
 | POST | `/peer_has_chunk` | Done |
 
-### Peer endpoints
+### Peer endpoints / CLI
 
 | Method | Path | Status |
 |--------|------|--------|
-| GET | `/health` | Done (Step 3) |
-| GET | `/chunk/<file_id>/<chunk_index>` | **Done (Step 3)** |
-| (UI routes) | `/`, `/upload`, `/download/...` | Steps 6–7 |
-| GET | `/progress/<file_id>` | Step 7 |
+| GET | `/health` | Done |
+| GET | `/chunk/<file_id>/<chunk_index>` | Done |
+| GET | `/` | **Done (Step 6)** — browse cards |
+| GET | `/upload` | **Done (Step 6)** |
+| GET | `/download/<file_id>` | **Done (Step 6)** |
+| GET | `/api/files` | **Done (Step 6)** |
+| POST | `/api/upload` | **Done (Step 6)** — multipart |
+| POST | `/api/download/<file_id>` | **Done (Step 6)** — background thread |
+| GET | `/progress/<file_id>` | **Stub working (Step 6)** — polish in Step 7 |
+| CLI | `python -m peer.swarm upload\|download` | Done (Steps 4–5) |
 
 ---
 
@@ -65,10 +71,10 @@ Flask tracker + Flask peer nodes that chunk files (256 KB), hash with SHA-256, e
 | 1 | Scaffold folders + `shared/utils.py` chunking/hashing | **DONE** |
 | 2 | Tracker Flask app + SQLite models; curl-tested | **DONE** |
 | 3 | Peer chunk-serving endpoint; manual P2P chunk fetch | **DONE** |
-| 4 | Peer download logic (manifest → fetch → verify → reassemble) | **NEXT** |
-| 5 | Peer upload/seed logic (chunk + hash + register with tracker) | Pending |
-| 6 | CRED/Spotify frontend (templates + CSS) | Pending |
-| 7 | Polling progress bars (`fetch` every 1s → `/progress/<file_id>`) | Pending |
+| 4 | Peer download logic (manifest → fetch → verify → reassemble) | **DONE** |
+| 5 | Peer upload/seed logic (chunk + hash + register with tracker) | **DONE** |
+| 6 | CRED/Spotify frontend (templates + CSS) | **DONE** |
+| 7 | Polling progress bars (`fetch` every 1s → `/progress/<file_id>`) | **NEXT** (basic polling already present; polish) |
 
 ### Demo requirements (keep in mind while building)
 
@@ -82,27 +88,32 @@ Flask tracker + Flask peer nodes that chunk files (256 KB), hash with SHA-256, e
 
 ```
 NightOwls-26/
-├── HANDOFF.md                # THIS FILE — update after every step
-├── README.md                 # stub title only
+├── HANDOFF.md
+├── README.md
 ├── requirements.txt          # Flask==3.1.3
-├── test_utils_smoke.py       # Step 1 smoke test
-├── .venv/                    # local virtualenv
+├── test_utils_smoke.py
+├── .venv/
 ├── scripts/
-│   └── seed_peer_chunks.py   # seed local chunk store for curl tests
+│   └── seed_peer_chunks.py
 ├── shared/
 │   ├── __init__.py
-│   └── utils.py              # CHUNK_SIZE=256KB, hash/chunk/verify helpers
+│   └── utils.py
 ├── tracker/
 │   ├── __init__.py
-│   ├── app.py                # Flask tracker (Step 2 complete)
-│   └── models.py             # SQLite schema + CRUD helpers
+│   ├── app.py
+│   └── models.py
 └── peer/
     ├── __init__.py
-    ├── app.py                # chunk server + tracker register (Step 3)
-    ├── store.py              # on-disk chunk/complete/meta store (Step 3)
-    ├── swarm.py              # EMPTY — implement Step 4–5 HERE
-    ├── templates/            # empty placeholders (index, upload, download)
-    └── static/               # empty placeholders (style.css, script.js)
+    ├── app.py                # chunk server + UI routes + APIs (Step 6)
+    ├── store.py
+    ├── swarm.py              # upload + download
+    ├── templates/
+    │   ├── index.html        # Spotify-style browse grid
+    │   ├── upload.html       # drag-drop seed
+    │   └── download.html     # progress view
+    └── static/
+        ├── style.css         # dark CRED/Spotify theme
+        └── script.js         # upload + 1s progress polling
 ```
 
 ### Peer local storage layout (`PEER_DATA_DIR`)
@@ -110,35 +121,46 @@ NightOwls-26/
 ```
 <data_dir>/
   chunks/<file_id>/<chunk_index>.bin
-  complete/<file_id>/<filename>     # optional full file
-  meta/<file_id>.json               # filename, hashes, sizes
+  complete/<file_id>/<filename>
+  meta/<file_id>.json
+  _uploads/                   # temp multipart uploads
 ```
-
-`ChunkStore.load_chunk` prefers discrete chunk files, else slices from `complete/`.
 
 ---
 
-## How to run what exists
+## How to run (UI demo)
 
 ```bash
-cd /home/harsh/Desktop/CC/NightOwls-26
-# use .venv/bin/python (PEP 668 on Kali)
+cd /home/mushaam/Desktop/cc/NightOwls-26
 
-# Utils smoke test
-.venv/bin/python test_utils_smoke.py
+# Terminal 1 — tracker
+TRACKER_DB=/tmp/nightowls_tracker.db TRACKER_PORT=5000 \
+  .venv/bin/python -c "
+from tracker.app import create_app, app
+create_app()
+app.run(host='127.0.0.1', port=5000, debug=False, use_reloader=False)
+"
 
-# Tracker (port 5000)
-TRACKER_DB=/tmp/nightowls_tracker.db TRACKER_PORT=5000 .venv/bin/python -m tracker.app
-
-# Seed chunks into a peer data dir (for Step 3-style tests)
-.venv/bin/python scripts/seed_peer_chunks.py \
-  --data-dir /tmp/nightowls_peer6001 --file-id 1 --size 400000
-
-# Peer chunk server (port 6001)
+# Terminal 2 — peer UI (open http://127.0.0.1:6001/)
 PEER_DATA_DIR=/tmp/nightowls_peer6001 \
 PEER_PORT=6001 PEER_IP=127.0.0.1 \
 TRACKER_URL=http://127.0.0.1:5000 \
   .venv/bin/python -m peer.app
+
+# Optional Terminal 3 — second peer UI on :6002
+PEER_DATA_DIR=/tmp/nightowls_peer6002 \
+PEER_PORT=6002 PEER_IP=127.0.0.1 \
+TRACKER_URL=http://127.0.0.1:5000 \
+  .venv/bin/python -m peer.app
+```
+
+Upload on peer 6001 → browse/download on peer 6002.
+
+### CLI still works
+
+```bash
+.venv/bin/python -m peer.swarm upload --path FILE --data-dir DIR --peer-port PORT
+.venv/bin/python -m peer.swarm download --file-id N --data-dir DIR --peer-port PORT
 ```
 
 ### Env vars
@@ -149,101 +171,47 @@ TRACKER_URL=http://127.0.0.1:5000 \
 | `TRACKER_DB` | `tracker/tracker.db` | tracker |
 | `TRACKER_URL` | `http://127.0.0.1:5000` | peer |
 | `PEER_PORT` | `6001` | peer |
-| `PEER_IP` | `127.0.0.1` | peer (announced to tracker) |
+| `PEER_IP` | `127.0.0.1` | peer |
 | `PEER_HOST` | `0.0.0.0` | peer bind |
 | `PEER_DATA_DIR` | `peer/data` | peer |
 
-### Example curl (tracker)
+---
 
-```bash
-curl -sS -X POST http://127.0.0.1:5000/register_peer \
-  -H 'Content-Type: application/json' \
-  -d '{"ip":"127.0.0.1","port":6001}'
+## `peer/swarm.py` API (Steps 4–5)
 
-curl -sS -X POST http://127.0.0.1:5000/upload_metadata \
-  -H 'Content-Type: application/json' \
-  -d '{"filename":"demo.txt","file_hash":"abc","file_size":512000,"chunk_hashes":["h0","h1"],"peer_ip":"127.0.0.1","peer_port":6001}'
-
-curl -sS http://127.0.0.1:5000/files
-curl -sS http://127.0.0.1:5000/peers/1
-curl -sS -X POST http://127.0.0.1:5000/peer_has_chunk \
-  -H 'Content-Type: application/json' \
-  -d '{"peer_ip":"127.0.0.1","peer_port":6002,"file_id":1,"chunk_index":0}'
-```
-
-### Example curl (peer chunk fetch — Step 3)
-
-```bash
-curl -sS http://127.0.0.1:6001/health
-curl -sS -o /tmp/chunk0.bin http://127.0.0.1:6001/chunk/1/0
-curl -sS -o /tmp/chunk1.bin http://127.0.0.1:6001/chunk/1/1
-# missing → 404
-curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:6001/chunk/1/99
-```
+- `upload_file(...)` / `download_file(...)` — see prior notes
+- CLI subcommands: `upload`, `download`
 
 ---
 
-## `shared/utils.py` API (do not reinvent)
+## UI notes (Step 6)
 
-- `CHUNK_SIZE = 256 * 1024`
-- `sha256_bytes(data)`, `sha256_file(path)`
-- `chunk_file(path) → (file_hash, file_size, chunk_hashes)`
-- `iter_file_chunks`, `read_chunk_from_file`, `write_chunks_to_file`
-- `verify_chunk(data, expected_hash)`, `verify_file(path, expected_hash)`
-
----
-
-## SQLite schema (tracker)
-
-- **peers** — `id`, `ip`, `port` (UNIQUE), `registered_at`
-- **files** — `id`, `filename`, `file_hash` (UNIQUE), `file_size`, `chunk_count`, `created_at`
-- **chunks** — `file_id`, `chunk_index`, `chunk_hash` (UNIQUE per file+index)
-- **peer_chunks** — `(peer_id, file_id, chunk_index)` — who has what
-
-On `upload_metadata`, the uploading peer is registered as having **all** chunks.
-
----
-
-## `peer/store.py` API
-
-- `ChunkStore(data_dir)`
-- `save_chunk(file_id, chunk_index, data)`
-- `load_chunk(file_id, chunk_index) → bytes | None`
-- `has_chunk(file_id, chunk_index) → bool`
-- `import_file(source, file_id, filename=None) → meta dict`
+- Theme: `--bg-primary: #0d0d0d`, `--accent: #7c3aed`, Inter, card grid, hover lift
+- Browse: server-rendered cards from tracker `/files`
+- Upload: drag-drop → `POST /api/upload` (multipart) → swarm `upload_file`
+- Download: page → `POST /api/download/<id>` starts background thread → JS polls `/progress/<id>` every 1s
+- Progress store: in-memory `app.config["DOWNLOADS"]` + local chunk counts from `ChunkStore`
 
 ---
 
 ## Next step instructions (for the next harness)
 
-### Step 4 — Download logic (`peer/swarm.py`) — **DO THIS NEXT**
+### Step 7 — Progress polling polish — **DO THIS NEXT**
 
-1. Implement swarm download in `peer/swarm.py`:
-   - Fetch manifest: `GET {tracker}/files/<file_id>` (includes `chunk_hashes`).
-   - Fetch peer map: `GET {tracker}/peers/<file_id>`.
-   - For each missing chunk: pick a peer that lists that chunk (round-robin or random).
-   - `GET http://{ip}:{port}/chunk/<file_id>/<chunk_index>`
-   - `verify_chunk` against manifest; on failure try another peer.
-   - `store.save_chunk(...)` then `POST {tracker}/peer_has_chunk`.
-   - When all chunks present: `write_chunks_to_file` into `complete/<file_id>/`.
-2. Wire a minimal CLI or Flask route to trigger download (CLI is fine for Step 4; UI is Step 6).
-3. Curl/CLI test with tracker + 2 peers (one seeder with chunks, one empty downloader).
-4. **Update this HANDOFF.md**, then pause for human review.
+Basic 1s polling already works. Step 7 should harden/finish it:
 
-### Step 5 — Upload/seed
-
-- `chunk_file` / `store.import_file` → `POST /upload_metadata` → keep serving chunks.
-
-### Steps 6–7 — UI + progress polling
-
-- Only after CLI/curl proves the swarm works.
-- CSS variables: `--bg-primary: #0d0d0d`, `--accent: #7c3aed` (or similar).
-- Poll `/progress/<file_id>` every 1s.
+1. Ensure `/progress/<file_id>` always returns stable fields:
+   `status`, `percent`, `chunks_have`, `chunks_total`, `peers_known`, `path`, `error`
+2. Live peer-count animation / clearer “X% complete, fetching from N peers” copy (already mostly there)
+3. Handle mid-download peer failure gracefully in UI messaging
+4. Optional: auto-start download when opening `/download/<id>`
+5. **Update this HANDOFF.md**, then pause
 
 ### Final polish
 
-- Seed script for 2–3 dummy files.
-- Multi-peer localhost demo (ports e.g. 5000 tracker, 6001/6002/6003 peers).
+- Seed script for 2–3 dummy files (wrap `peer.swarm upload`).
+- Multi-peer localhost demo (5000 + 6001/6002/6003).
+- Prefer `debug=False` / no reloader for tracker in demos (port conflicts).
 
 ---
 
@@ -260,15 +228,15 @@ On `upload_metadata`, the uploading peer is registered as having **all** chunks.
 
 | Check | Result |
 |-------|--------|
-| `test_utils_smoke.py` | OK — multi-chunk hash/reassemble |
-| Tracker curl suite (register, upload, files, peers, peer_has_chunk) | ALL PASSED |
-| Peer `/health` | OK |
-| Peer `GET /chunk/1/0` and `/chunk/1/1` | OK — sizes 262144 + 137856; SHA-256 matched seed hashes |
-| Peer missing chunk | HTTP 404 |
-| Peer auto-register with tracker on startup | OK |
+| Steps 1–5 backend | OK (see prior entries) |
+| `GET /`, `/upload`, `/download/1` | 200 — templates render |
+| `GET /static/style.css`, `script.js` | 200 |
+| `POST /api/upload` | 201 — file registered + stored |
+| Index shows uploaded card | OK |
+| Peer2 `POST /api/download/1` + `/progress/1` | complete @ 100%, hash match |
 
 ---
 
 ## Resume command for next agent
 
-> Read `HANDOFF.md`. Steps 1–3 are done. Implement **Step 4 only** (`peer/swarm.py` download: manifest → fetch chunks from peers → verify → save → `peer_has_chunk` → reassemble). Curl/CLI test with tracker + 2 peers. Update `HANDOFF.md`, then pause for review.
+> Read `HANDOFF.md`. Steps 1–6 are done. Implement **Step 7 only** (polish progress polling / `/progress/<file_id>` contract and download UX). Then final demo seed script if time. Update `HANDOFF.md`, then pause for review.

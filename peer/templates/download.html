@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NightOwls — Download</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="{{ url_for('home') }}">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-name">NightOwls</span>
+        </a>
+        <nav class="nav">
+          <a href="{{ url_for('home') }}">Browse</a>
+          <a href="{{ url_for('upload_page') }}">Upload</a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <h1 id="file-title">{{ filename }}</h1>
+        <p>Fetching verified chunks from peers on the LAN.</p>
+      </section>
+
+      <section class="panel" data-file-id="{{ file_id }}">
+        <div class="meta">
+          <span id="size-label">{{ size_label }}</span>
+          <span class="dot">•</span>
+          <span
+            >Fetching from
+            <span class="live-counter" id="peer-count">{{ seeder_count }}</span> peers</span
+          >
+        </div>
+
+        <div class="progress-wrap">
+          <div class="progress-label">
+            <span id="progress-text">Starting…</span>
+            <span id="progress-percent">0%</span>
+          </div>
+          <div class="progress-track" aria-hidden="true">
+            <div class="progress-bar" id="progress-bar"></div>
+          </div>
+        </div>
+
+        <div class="status" id="download-status">Preparing download…</div>
+        <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap">
+          <button type="button" class="btn btn-primary" id="start-download">Start download</button>
+          <a class="btn btn-ghost" href="{{ url_for('home') }}">Back to browse</a>
+        </div>
+      </section>
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+  </body>
+</html>

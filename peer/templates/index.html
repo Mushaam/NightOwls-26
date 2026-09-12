@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NightOwls — Browse</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="{{ url_for('home') }}">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-name">NightOwls</span>
+        </a>
+        <nav class="nav">
+          <a class="active" href="{{ url_for('home') }}">Browse</a>
+          <a href="{{ url_for('upload_page') }}">Upload</a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <h1>Browse the swarm</h1>
+        <p>Files available on your college LAN. Pick a card to download from seeders nearby.</p>
+        <span class="peer-chip">Peer {{ peer_ip }}:{{ peer_port }}</span>
+      </section>
+
+      {% if error %}
+      <div class="status err">{{ error }}</div>
+      {% endif %}
+
+      {% if files %}
+      <div class="grid" id="file-grid">
+        {% for f in files %}
+        <article class="card">
+          <div class="card-art" aria-hidden="true"></div>
+          <h2>{{ f.filename }}</h2>
+          <div class="meta">
+            <span>{{ f.size_label }}</span>
+            <span class="dot">•</span>
+            <span>{{ f.seeder_count }} seeder{% if f.seeder_count != 1 %}s{% endif %}</span>
+            <span class="dot">•</span>
+            <span>{{ f.chunk_count }} chunks</span>
+          </div>
+          <div class="card-actions">
+            <a class="btn btn-primary btn-block" href="{{ url_for('download_page', file_id=f.id) }}"
+              >Download</a
+            >
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">
+        <p>No files on the tracker yet.</p>
+        <p><a class="btn btn-primary" href="{{ url_for('upload_page') }}">Seed the first file</a></p>
+      </div>
+      {% endif %}
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+  </body>
+</html>
