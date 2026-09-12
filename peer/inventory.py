@@ -220,18 +220,7 @@ class LocalInventory:
         with self._connect() as conn:
             for entry in zombies:
                 file_id = int(entry["file_id"])
-                # Drop broken complete bytes / empty folders
-                folder = self.store.complete_dir / str(file_id)
-                if folder.is_dir():
-                    for p in folder.iterdir():
-                        if p.is_file():
-                            p.unlink(missing_ok=True)
-                    try:
-                        folder.rmdir()
-                    except OSError:
-                        pass
-                meta_path = self.store.meta_dir / f"{file_id}.json"
-                meta_path.unlink(missing_ok=True)
+                self._purge_disk(file_id)
                 conn.execute("DELETE FROM local_files WHERE file_id = ?", (file_id,))
                 removed.append(file_id)
             conn.commit()
@@ -240,6 +229,98 @@ class LocalInventory:
         summary["cleared"] = removed
         summary["cleared_count"] = len(removed)
         return summary
+
+    def _purge_disk(self, file_id: int) -> dict[str, bool]:
+        """Remove complete/, meta/, and chunks/ for a file_id. Returns what was touched."""
+        touched = {"complete": False, "meta": False, "chunks": False}
+
+        folder = self.store.complete_dir / str(file_id)
+        if folder.exists():
+            if folder.is_dir():
+                for p in folder.iterdir():
+                    if p.is_file() or p.is_symlink():
+                        p.unlink(missing_ok=True)
+                    elif p.is_dir():
+                        # unexpected nested dir — best-effort
+                        for child in p.rglob("*"):
+                            if child.is_file() or child.is_symlink():
+                                child.unlink(missing_ok=True)
+                        for child in sorted(p.rglob("*"), reverse=True):
+                            if child.is_dir():
+                                try:
+                                    child.rmdir()
+                                except OSError:
+                                    pass
+                        try:
+                            p.rmdir()
+                        except OSError:
+                            pass
+                try:
+                    folder.rmdir()
+                except OSError:
+                    pass
+            else:
+                folder.unlink(missing_ok=True)
+            touched["complete"] = True
+
+        # Also remove path recorded in DB if it still exists under complete/
+        entry = self.get(file_id)
+        if entry and entry.get("path"):
+            recorded = Path(entry["path"])
+            try:
+                recorded.resolve().relative_to(self.store.complete_dir.resolve())
+                if recorded.is_file():
+                    recorded.unlink(missing_ok=True)
+                    touched["complete"] = True
+                    parent = recorded.parent
+                    if parent.is_dir() and parent != self.store.complete_dir:
+                        try:
+                            parent.rmdir()
+                        except OSError:
+                            pass
+            except ValueError:
+                pass
+
+        meta_path = self.store.meta_dir / f"{file_id}.json"
+        if meta_path.is_file():
+            meta_path.unlink(missing_ok=True)
+            touched["meta"] = True
+
+        chunks_dir = self.store.chunks_dir / str(file_id)
+        if chunks_dir.is_dir():
+            for p in chunks_dir.iterdir():
+                if p.is_file() or p.is_symlink():
+                    p.unlink(missing_ok=True)
+            try:
+                chunks_dir.rmdir()
+            except OSError:
+                pass
+            touched["chunks"] = True
+
+        return touched
+
+    def delete_file(self, file_id: int) -> dict[str, Any]:
+        """
+        Fully remove a library entry: SQLite row + complete/ + meta/ + chunks/.
+        Raises KeyError if the file_id is not in the library.
+        """
+        file_id = int(file_id)
+        entry = self.get(file_id)
+        if not entry:
+            raise KeyError(f"Unknown library file_id: {file_id}")
+
+        disk = self._purge_disk(file_id)
+        with self._connect() as conn:
+            conn.execute("DELETE FROM local_files WHERE file_id = ?", (file_id,))
+            conn.commit()
+
+        # Drop in-memory progress if any (caller may also clear DOWNLOADS)
+        return {
+            "file_id": file_id,
+            "filename": entry.get("filename"),
+            "removed_from_db": True,
+            "disk": disk,
+        }
 
     def resolve_path(self, file_id: int) -> Path | None:
         """Return a path only if the entry is currently OK and the file exists."""

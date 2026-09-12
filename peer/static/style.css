@@ -903,6 +903,15 @@ body.view-list #file-list-wrap {
   margin-left: 0.35rem;
 }
 
+.lib-delete {
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+}
+
+.lib-delete:hover {
+  background: rgba(239, 68, 68, 0.12) !important;
+}
+
 .mono {
   font-variant-numeric: tabular-nums;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

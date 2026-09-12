@@ -634,6 +634,20 @@ def api_library_open(file_id: int):
     return jsonify({"status": "opened", "path": str(path)})
 
 
+@app.post("/api/library/<int:file_id>/delete")
+def api_library_delete(file_id: int):
+    """Remove a library entry from SQLite and wipe local complete/meta/chunks."""
+    inventory: LocalInventory = app.config["INVENTORY"]
+    try:
+        result = inventory.delete_file(file_id)
+    except KeyError:
+        return jsonify({"error": "File not in library"}), 404
+    # Drop any in-memory download progress for this id.
+    downloads = app.config.get("DOWNLOADS") or {}
+    downloads.pop(file_id, None)
+    return jsonify({"status": "deleted", **result})
+
+
 if __name__ == "__main__":
     create_app()
     host = _env("PEER_HOST", "0.0.0.0")

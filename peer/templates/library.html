@@ -108,6 +108,14 @@
                   {% else %}
                   <span class="muted">Unavailable</span>
                   {% endif %}
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-compact lib-delete"
+                    data-id="{{ e.file_id }}"
+                    data-name="{{ e.filename }}"
+                  >
+                    Delete
+                  </button>
                 </td>
               </tr>
               {% endfor %}

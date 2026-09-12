@@ -167,6 +167,7 @@ Env: `PEER_PORT=6001` `PEER_IP=127.0.0.1` `PEER_HOST=0.0.0.0` `PEER_DATA_DIR=pee
 | POST | `/api/library/clear-zombies` | drop missing/corrupt DB rows + leftover complete/meta |
 | GET | `/api/library/<fid>/copy` | Save-As download (`Content-Disposition: attachment`) |
 | POST | `/api/library/<fid>/open` | OS default open (`xdg-open` / `open` / `startfile`) |
+| POST | `/api/library/<fid>/delete` | remove library row + wipe `complete/` `meta/` `chunks/` |
 
 CLI: `python -m peer.swarm upload --path F --data-dir D --peer-port P` · `… download --file-id N …`
 
@@ -196,7 +197,7 @@ CLI: `python -m peer.swarm upload --path F --data-dir D --peer-port P` · `… d
 
 **`peer.store.ChunkStore`:** `save_chunk` `load_chunk` `has_chunk(..., expected_hash=, expected_size=)` `delete_chunk` `clear_incomplete` `is_verified_complete` `load_meta` · dirs under `data_dir`
 
-**`peer.inventory.LocalInventory`:** SQLite `library.db` · `register` · `verify_all` (startup + manual) · `clear_zombies` · `resolve_path` · statuses `ok|missing|corrupt`
+**`peer.inventory.LocalInventory`:** SQLite `library.db` · `register` · `verify_all` (startup + manual) · `clear_zombies` · `delete_file` (DB + disk) · `resolve_path` · statuses `ok|missing|corrupt`
 
 **`peer.swarm`:**  
 - `upload_file(source, tracker_url, store, peer_ip, peer_port, filename=)`  
@@ -220,7 +221,7 @@ CLI: `python -m peer.swarm upload --path F --data-dir D --peer-port P` · `… d
 - Search: ranks by name/prefix/tokens/id/ext/hash; IME-safe `input`; `/` focuses, Esc clears; match highlight
 - Upload: drag-drop → `POST /api/upload`
 - Download page: **auto-starts** unless already complete; button = start/retry; poll 1s; peer-count bump CSS (`.live-counter.bump`); `.status.warn` for peer failures
-- **Files (`/library`):** local downloads/seeds; zombie rows (`.is-zombie`, `missing`/`corrupt` badges); **View** = OS open; **Copy** = browser Save-As; Re-verify + Clear zombies
+- **Files (`/library`):** local downloads/seeds; zombie rows (`.is-zombie`, `missing`/`corrupt` badges); **View** = OS open; **Copy** = browser Save-As; **Delete** = DB + disk purge; Re-verify + Clear zombies
 - **Already-have download:** `GET /download/<id>` (and `POST /api/download/<id>`) check local library by file_id or SHA-256; if healthy copy exists → redirect `/library?focus=<id>` (use `?force=1` to bypass)
 - Files: `peer/templates/index.html` `library.html` `peer/static/file-catalog.js` `script.js` `style.css` · `peer/inventory.py`
 

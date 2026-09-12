@@ -360,5 +360,34 @@
         }
       });
     });
+
+    document.querySelectorAll(".lib-delete").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-id");
+        const name = btn.getAttribute("data-name") || `#${id}`;
+        if (
+          !window.confirm(
+            `Delete “${name}” from this peer?\n\nRemoves the library record and local files (complete, meta, chunks).`
+          )
+        ) {
+          return;
+        }
+        btn.disabled = true;
+        setStatus(libraryStatus, `Deleting ${name}…`);
+        if (libraryStatus) libraryStatus.hidden = false;
+        try {
+          const res = await fetch(`/api/library/${id}/delete`, { method: "POST" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Delete failed");
+          setStatus(libraryStatus, `Deleted “${data.filename || name}”.`, "ok");
+          const row = document.getElementById(`lib-${id}`);
+          if (row) row.remove();
+          window.setTimeout(() => window.location.reload(), 500);
+        } catch (err) {
+          btn.disabled = false;
+          setStatus(libraryStatus, err.message || String(err), "err");
+        }
+      });
+    });
   }
 })();
