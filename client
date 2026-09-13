@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
-# Plug-and-play peer client. From the project root: ./client <TRACKER_IP>
+# Plug-and-play peer client. Reads tracker_url from config/nightowls.json by default.
+# From the project root: ./client
 exec "$(cd "$(dirname "$0")" && pwd)/scripts/start_client.sh" "$@"
