@@ -31,7 +31,8 @@ Educational **BitTorrent-style LAN file sharer** for a college network: one cent
 
 **NEXT:** human review of wormhole remote path; optionally point `config/nightowls.json` at a reachable tracker URL + advertise real public/LAN IPs. Pause.
 
-**Demo host (ngrok):** `./demo` starts tracker `:5000` + seeder peer `:6001` (+ demo files). Then run `ngrok http 5000` and put the public URL in `config/nightowls.json` → `tracker_url`. Remotes: `./client` (reads config automatically).
+**Demo host (ngrok):** `./demo` or `demo.bat` starts tracker `:5000` + seeder peer `:6001` (+ demo files). Then run `ngrok http 5000` and put the public URL in `config/nightowls.json` → `tracker_url`. Remotes: `./client` / `client.bat` (reads config automatically).  
+**Windows first run:** `setup.bat` (venv + pip), then `demo.bat` / `client.bat`.
 
 **Recent UX:** browse **card/list views** + schema-driven **sort** (`peer/static/file-catalog.js`).  
 **Tracker portal:** bare admin UI at `http://<tracker>/portal` — inventory + audit + CSV export.  
@@ -113,7 +114,7 @@ NightOwls-26/
     └── static/            style.css | script.js | file-catalog.js
 ```
 
-Helpers: `./server` `./client` (or `.bat`) wrap common launches.
+Helpers: `./server` `./client` `./demo` `./setup` (or `.bat` on Windows) wrap common launches.
 
 ---
 
