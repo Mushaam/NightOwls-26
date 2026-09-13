@@ -16,7 +16,7 @@ Educational **BitTorrent-style LAN file sharer** for a college network: one cent
 
 ---
 
-## Status (2026-09-12)
+## Status (2026-09-13)
 
 | Step | What | State |
 |------|------|-------|
@@ -27,14 +27,18 @@ Educational **BitTorrent-style LAN file sharer** for a college network: one cent
 | 5 | `swarm.upload_file` | DONE |
 | 6 | UI templates/CSS/JS | DONE |
 | 7 | `/progress` contract + poll polish + auto-start | DONE |
+| 8 | Cross-network via Magic Wormhole + config file | DONE |
 
-**NEXT:** final demo polish only — verify/extend seed + multi-peer launcher (`scripts/run.sh --seed` exists); no new architecture. Pause for human review after changes.
+**NEXT:** human review of wormhole remote path; optionally point `config/nightowls.json` at a reachable tracker URL + advertise real public/LAN IPs. Pause.
+
+**Demo host (ngrok):** `./demo` starts tracker `:5000` + seeder peer `:6001` (+ demo files). Then run `ngrok http 5000` and put the public URL in `config/nightowls.json` → `tracker_url`.
 
 **Recent UX:** browse **card/list views** + schema-driven **sort** (`peer/static/file-catalog.js`).  
 **Tracker portal:** bare admin UI at `http://<tracker>/portal` — inventory + audit + CSV export.  
-**Peer file manager:** `/library` — local `library.db`, startup SHA-256 verify, zombie clear, View/Copy.
+**Peer file manager:** `/library` — local `library.db`, startup SHA-256 verify, zombie clear, View/Copy.  
+**Worldwide:** LAN HTTP first; if chunk fetch fails, tracker-coordinated **Magic Wormhole** transit (`config/nightowls.json`).
 
-**Branch:** `step7` (tracks build step naming; Steps 1–7 complete).
+**Branch:** `going_worldwide`
 
 ---
 
@@ -48,7 +52,7 @@ Educational **BitTorrent-style LAN file sharer** for a college network: one cent
 | Chunks | **256 KB** (`shared.utils.CHUNK_SIZE`), SHA-256 per chunk + whole file |
 | Theme | `--bg-primary:#0d0d0d` `--accent:#7c3aed` Inter, cards, 12–16px radius |
 | Env | Use `.venv/` (PEP 668). Never skip BUILD ORDER; pause after each step unless told |
-| Scope | Educational LAN demo — no DHT, no real BT protocol, no prod hardening unless asked |
+| Scope | Educational demo — LAN HTTP + optional Magic Wormhole fallback; no DHT / real BT |
 
 ---
 
@@ -69,7 +73,8 @@ Educational **BitTorrent-style LAN file sharer** for a college network: one cent
 2. **Download:** `GET /files/<id>` + `GET /peers/<id>` → RR fetch `/chunk` → verify → save → report have → reassemble `complete/<id>/<name>` → whole-file hash check.
 3. **UI download:** `POST /api/download/<id>` (thread) → JS polls `GET /progress/<id>` every **1s**.
 
-**Resilience:** refresh peer map periodically; try multiple peers per chunk; mid-fail → warning UI, other peers continue.
+**Resilience:** refresh peer map periodically; try multiple peers per chunk; mid-fail → warning UI, other peers continue.  
+**Cross-network:** same swarm UX; direct `GET /chunk` first (`direct_timeout_sec`); on failure, tracker `wormhole_jobs` + Magic Wormhole mailbox/transit from `config/nightowls.json`.
 
 ---
 
@@ -82,21 +87,26 @@ NightOwls-26/
 ├── prompt.txt             original assignment
 ├── ARCHITECTURE.md        mermaid diagrams
 ├── USER_MANUAL.md / README.md
-├── requirements.txt       Flask==3.1.3
+├── requirements.txt       Flask==3.1.3 · magic-wormhole · crochet
 ├── test_utils_smoke.py
 ├── scripts/
 │   ├── run.sh             tracker + N peers; --seed
 │   ├── seed_peer_chunks.py
 │   └── start_{server,client}.{sh,bat}
+├── config/
+│   └── nightowls.json     # tracker_url, peer advertise, wormhole relays
 ├── shared/utils.py        CHUNK_SIZE, chunk_file, verify_*, sha256_*
+├── shared/config.py       load_config() — file + env overrides
 ├── tracker/
-│   ├── app.py             HTTP API + /portal admin UI
-│   ├── models.py          peers, files, chunks, peer_chunks, audit_log
+│   ├── app.py             HTTP API + /portal + /wormhole/jobs*
+│   ├── models.py          peers, files, chunks, peer_chunks, audit_log, wormhole_jobs
 │   ├── templates/         portal_*.html
 │   └── static/portal.css  bare admin styles
 └── peer/
     ├── app.py             UI + /chunk + /api/* + /progress + /library + DOWNLOADS{}
-    ├── swarm.py           upload_file / download_file (+ CLI)
+    ├── swarm.py           upload_file / download_file (+ HTTP→wormhole fallback)
+    ├── wormhole_xfer.py   Magic Wormhole transit send/recv (crochet)
+    ├── wormhole_worker.py seeder background job poller
     ├── store.py           ChunkStore disk layout
     ├── inventory.py       LocalInventory — library.db + verify/zombies
     ├── templates/         index | upload | download | library
@@ -122,9 +132,10 @@ Helpers: `./server` `./client` (or `.bat`) wrap common launches.
 
 ## Tracker SQLite
 
-`peers(id, ip, port UNIQUE)` · `files(id, filename, file_hash UNIQUE, file_size, chunk_count)` · `chunks(file_id, chunk_index, chunk_hash)` · `peer_chunks(peer_id, file_id, chunk_index)` PK composite · `audit_log(id, created_at, action, actor, detail)`.
+`peers(id, ip, port UNIQUE)` · `files(id, filename, file_hash UNIQUE, file_size, chunk_count)` · `chunks(file_id, chunk_index, chunk_hash)` · `peer_chunks(peer_id, file_id, chunk_index)` PK composite · `audit_log(id, created_at, action, actor, detail)` · `wormhole_jobs(id, seeder_*, requester_*, file_id, chunk_index, code, status, detail, timestamps)`.
 
-Env: `TRACKER_PORT=5000` `TRACKER_DB=tracker/tracker.db` `TRACKER_SECRET` (Flask flash sessions; default dev key)
+Env: `TRACKER_PORT=5000` `TRACKER_DB=tracker/tracker.db` `TRACKER_SECRET` (Flask flash sessions; default dev key)  
+Config file: `config/nightowls.json` (or `$NIGHTOWLS_CONFIG`) — `tracker_url`, peer bind/advertise, wormhole mailbox/transit URLs. Env vars override the file.
 
 ### Tracker HTTP
 
@@ -136,6 +147,12 @@ Env: `TRACKER_PORT=5000` `TRACKER_DB=tracker/tracker.db` `TRACKER_SECRET` (Flask
 | GET | `/files/<id>` | manifest + `chunk_hashes` |
 | GET | `/peers/<file_id>` | `[{ip,port,chunks:[…]}]` |
 | POST | `/peer_has_chunk` | `{peer_ip,peer_port,file_id,chunk_index}` · **not** audited (noise) |
+| POST | `/wormhole/jobs` | create job `{seeder_ip,seeder_port,requester_ip,requester_port,file_id,chunk_index}` |
+| GET | `/wormhole/jobs` | `?seeder_ip=&seeder_port=&status=pending` list for seeder worker |
+| GET | `/wormhole/jobs/<id>` | job status (+ `code` when ready) |
+| POST | `/wormhole/jobs/<id>/claim` | pending → sending |
+| POST | `/wormhole/jobs/<id>/code` | `{code}` → ready |
+| POST | `/wormhole/jobs/<id>/status` | `{status,detail?}` done/error |
 | POST/DELETE | `/files/<id>/unshare` | remove from catalog only (peer disks untouched); audits `file_unshare` |
 | GET | `/` | redirect → `/portal` |
 | GET | `/portal` | home + stats + recent audit |
@@ -153,7 +170,8 @@ Portal UI is intentionally plain (not peer CRED theme). No auth — LAN demo onl
 
 ## Peer HTTP / CLI
 
-Env: `PEER_PORT=6001` `PEER_IP=127.0.0.1` `PEER_HOST=0.0.0.0` `PEER_DATA_DIR=peer/data` `TRACKER_URL=http://127.0.0.1:5000`
+Env: `PEER_PORT=6001` `PEER_IP=127.0.0.1` `PEER_HOST=0.0.0.0` `PEER_DATA_DIR=peer/data` `TRACKER_URL=http://127.0.0.1:5000`  
+Also: `NIGHTOWLS_CONFIG`, `WORMHOLE_ENABLED`, `WORMHOLE_MAILBOX_URL`, `WORMHOLE_TRANSIT_HELPER`, `WORMHOLE_APPID` (override config file).
 
 | Method | Path | Role |
 |--------|------|------|
@@ -203,12 +221,16 @@ CLI: `python -m peer.swarm upload --path F --data-dir D --peer-port P` · `… d
 
 **`peer.swarm`:**  
 - `upload_file(source, tracker_url, store, peer_ip, peer_port, filename=)`  
-- `download_file(..., on_progress=callable|None, refresh_peers=True)` — emits progress dicts; raises `DownloadError` if missing chunks  
-- Progress statuses: `starting` `skip_existing` `chunk_ok` `no_peers` `chunk_failed` `complete`
+- `download_file(..., on_progress=, refresh_peers=, config=)` — HTTP then wormhole fallback when enabled  
+- Progress statuses: `starting` `skip_existing` `chunk_ok` `no_peers` `chunk_failed` `complete` (`from_peer` may be `wormhole:ip:port`)
 
-**`peer.app.create_app(...)`:** builds store + inventory, **`verify_all()` on startup**, registers with tracker (unless `register=False`), sets config keys.
+**`peer.wormhole_xfer` / `wormhole_worker`:** transit send/recv via crochet; seeder polls `/wormhole/jobs` while peer is running (`register=True`).
 
-**`tracker.models`:** `init_db` `register_peer` `upload_metadata` `list_files` `get_file` `peers_for_file` `peer_has_chunk` `log_audit` `list_audit` `list_peers` `portal_stats` `rename_file` `delete_file`
+**`shared.config`:** `load_config()` `wormhole_enabled()` — merges `config/nightowls.json` + env.
+
+**`peer.app.create_app(...)`:** builds store + inventory, **`verify_all()` on startup**, registers with tracker (unless `register=False`), starts wormhole seeder worker when enabled, sets config keys.
+
+**`tracker.models`:** `init_db` `register_peer` `upload_metadata` `list_files` `get_file` `peers_for_file` `peer_has_chunk` `log_audit` `list_audit` `list_peers` `portal_stats` `rename_file` `delete_file` · wormhole: `create_wormhole_job` `get_wormhole_job` `list_wormhole_jobs` `claim_wormhole_job` `set_wormhole_code` `update_wormhole_job`
 
 ---
 
@@ -254,9 +276,9 @@ Smoke: `test_utils_smoke.py` · progress idle must include all 7 contract keys.
 2. Prefer smallest change; match existing style; no drive-by refactors.
 3. After a step **or any meaningful change** (APIs, status, NEXT, env, contracts, run paths): update **this file** and `HANDOFF.md` when status/next shifts; then **pause** after BUILD ORDER steps.
 4. Keep this file accurate over chat continuity — do not let Status/NEXT/APIs drift from the repo.
-5. Demo polish next — do not invent new stack/features unless human asks.
+5. Demo polish / wormhole remote — do not invent new stack/features unless human asks.
 6. Secrets: none expected; don’t commit `.venv` / local DBs / peer data dirs.
 
 ## Resume one-liner
 
-> Steps 1–7 done. Do final polish (seed/multi-peer demo hygiene via `scripts/run.sh`). Update `AGENTS.md` + `HANDOFF.md`. Pause.
+> Steps 1–7 + wormhole worldwide path done. Review `config/nightowls.json` (tracker URL + advertise hosts). Pause.

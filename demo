@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Demo host: tracker + seeder. Then run ngrok yourself.
+# From the project root: ./demo
+exec "$(cd "$(dirname "$0")" && pwd)/scripts/start_demo_host.sh" "$@"

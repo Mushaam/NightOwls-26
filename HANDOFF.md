@@ -1,6 +1,6 @@
 # NightOwls-26 — Build Handoff Report
 
-**Last updated:** 2026-09-12 (after Step 7)  
+**Last updated:** 2026-09-13 (wormhole worldwide)  
 **Project:** Decentralized LAN file-sharing (BitTorrent-style tracker + peers)  
 **Workspace:** `/home/mushaam/Desktop/cc/NightOwls-26`
 
@@ -77,45 +77,41 @@ Flask tracker + Flask peer nodes that chunk files (256 KB), hash with SHA-256, e
 | 5 | Peer upload/seed logic (chunk + hash + register with tracker) | **DONE** |
 | 6 | CRED/Spotify frontend (templates + CSS) | **DONE** |
 | 7 | Polling progress bars (`fetch` every 1s → `/progress/<file_id>`) | **DONE** |
+| 8 | Magic Wormhole cross-network fallback + `config/nightowls.json` | **DONE** |
 
 ### Demo requirements (keep in mind while building)
 
 - Tracker + **3+ peers** on localhost, different ports.  
 - Killing one peer mid-download must not block others.  
 - Seed script: 2–3 dummy files pre-seeded for instant demo content.
+- Cross-network: set `tracker_url` + `peer.advertise_*` in `config/nightowls.json`; public mailbox/transit (or self-hosted) under `wormhole`.
 
 ---
+
+## Next step instructions (for the next harness)
+
+### Human review — **DO THIS NEXT**
+
+1. Confirm LAN path still works (`./scripts/run.sh --seed`).
+2. For remote peers: put a reachable tracker URL in `config/nightowls.json`, set each peer’s `advertise_host`/`advertise_port` to addresses the tracker should list (HTTP may still fail across NAT — wormhole covers chunk bytes).
+3. Optional: self-host mailbox/transit and point config at them.
+4. Update this file if behavior changes; **pause**.
+
+## Resume command for next agent
+
+> Read `AGENTS.md`. Steps 1–8 done (wormhole worldwide). Await human review / config for real remote tracker.
 
 ## Current tree
 
 ```
 NightOwls-26/
 ├── HANDOFF.md
-├── README.md
-├── requirements.txt          # Flask==3.1.3
-├── test_utils_smoke.py
-├── .venv/
-├── scripts/
-│   └── seed_peer_chunks.py
-├── shared/
-│   ├── __init__.py
-│   └── utils.py
-├── tracker/
-│   ├── __init__.py
-│   ├── app.py
-│   └── models.py
-└── peer/
-    ├── __init__.py
-    ├── app.py                # chunk server + UI routes + APIs (Step 6)
-    ├── store.py
-    ├── swarm.py              # upload + download
-    ├── templates/
-    │   ├── index.html        # Spotify-style browse grid
-    │   ├── upload.html       # drag-drop seed
-    │   └── download.html     # progress view
-    └── static/
-        ├── style.css         # dark CRED/Spotify theme
-        └── script.js         # upload + 1s progress polling
+├── AGENTS.md
+├── config/nightowls.json
+├── requirements.txt          # Flask + magic-wormhole + crochet
+├── shared/{utils,config}.py
+├── tracker/{app,models}.py
+└── peer/{app,swarm,store,inventory,wormhole_xfer,wormhole_worker}.py
 ```
 
 ### Peer local storage layout (`PEER_DATA_DIR`)
@@ -199,19 +195,6 @@ Upload on peer 6001 → browse/download on peer 6002.
 
 ---
 
-## Next step instructions (for the next harness)
-
-### Final polish — **DO THIS NEXT** (optional demo niceties)
-
-Steps 1–7 are complete. Remaining demo polish:
-
-1. Seed script for 2–3 dummy files (wrap `peer.swarm upload`) — check `scripts/` first; may already exist.
-2. Multi-peer localhost demo (5000 + 6001/6002/6003) — see `scripts/run.sh`.
-3. Prefer `debug=False` / no reloader for tracker in demos (port conflicts).
-4. **Update this HANDOFF.md**, then pause
-
----
-
 ## Working agreements with the human
 
 - Work in the current folder; create files and use terminal for `pip` (via `.venv`).
@@ -234,9 +217,12 @@ Steps 1–7 are complete. Remaining demo polish:
 | Step 7 `/progress` idle contract | OK — all 7 fields present; `error`/`path` null |
 | Step 7 warning + error jobs | OK — `warning` surfaced; `error` status preserved |
 | Download UI auto-start + warn class | OK (script.js + style.css) |
+| Wormhole tracker job API | OK — create/claim/code/status |
+| Wormhole transit roundtrip | OK — public mailbox/transit |
+| HTTP-fail → wormhole download | OK — `from_peer=wormhole:…`, hash match |
 
 ---
 
 ## Resume command for next agent
 
-> Read `HANDOFF.md`. Steps 1–7 are done. Do **final polish only** if needed (seed/demo scripts, multi-peer run). Update `HANDOFF.md`, then pause for review.
+> Read `AGENTS.md`. Steps 1–8 done (wormhole worldwide). Await human review / config for real remote tracker.
