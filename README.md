@@ -1,8 +1,8 @@
-# NightOwls-26
+# Campus Connect
 
 Decentralized file sharing for a college LAN — BitTorrent-style tracker + peer nodes, built with Flask.
 
-Students seed files from their machines; others download verified 256 KB chunks over HTTP. A dark CRED/Spotify-inspired UI runs on each peer.
+Students seed files from their machines; others download verified 256 KB chunks over HTTP. A dark neo-brutalist Campus Connect UI runs on each peer.
 
 ## Features
 

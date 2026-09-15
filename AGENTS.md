@@ -10,13 +10,13 @@
 
 Educational **BitTorrent-style LAN file sharer** for a college network: one central **tracker** (catalog + peer↔chunk map), many **peer** nodes (seed + download + serve chunks). Not real BitTorrent wire protocol — HTTP + Flask + SQLite + SHA-256 chunk verify.
 
-**User experience:** dark CRED/Spotify UI on each peer — browse cards → upload/seed → download with live % / peer-count polling.
+**User experience:** dark neo-brutalist **Campus Connect** UI on each peer — browse cards → upload/seed → download with live % / peer-count polling.
 
 **Demo bar:** tracker + **3+ peers** on localhost (different ports); kill one peer mid-download → others still finish; seed script with 2–3 dummy files.
 
 ---
 
-## Status (2026-09-13)
+## Status (2026-09-15)
 
 | Step | What | State |
 |------|------|-------|
@@ -34,8 +34,9 @@ Educational **BitTorrent-style LAN file sharer** for a college network: one cent
 **Demo host (ngrok):** `./demo` or `demo.bat` starts tracker `:5000` + seeder peer `:6001` (+ demo files). Then run `ngrok http 5000` and put the public URL in `config/nightowls.json` → `tracker_url`. Remotes: `./client` / `client.bat` (reads config automatically).  
 **Windows first run:** `setup.bat` (venv + pip), then `demo.bat` / `client.bat`.
 
-**Recent UX:** browse **card/list views** + schema-driven **sort** (`peer/static/file-catalog.js`).  
-**Tracker portal:** bare admin UI at `http://<tracker>/portal` — inventory + audit + CSV export.  
+**Recent UX:** Campus Connect rebrand + dark neo-brutalist system (Tailwind browser utilities plus local CSS fallback; Space Grotesk + IBM Plex Mono; hard borders/shadows and teal/yellow/red accents); browse **card/list views** + schema-driven **sort** (`peer/static/file-catalog.js`).
+
+**Tracker portal:** matching dark neo-brutalist admin UI at `http://<tracker>/portal` — inventory + audit + CSV export.
 **Peer file manager:** `/library` — local `library.db`, startup SHA-256 verify, zombie clear, View/Copy.  
 **Worldwide:** LAN HTTP first; if chunk fetch fails, tracker-coordinated **Magic Wormhole** transit (`config/nightowls.json`).
 
@@ -48,10 +49,10 @@ Educational **BitTorrent-style LAN file sharer** for a college network: one cent
 | Layer | Rule |
 |-------|------|
 | Backend | Flask only (`Flask==3.1.3` in `requirements.txt`) |
-| Frontend | HTML/CSS + **vanilla JS** (polling only). No React/Vue/Bootstrap |
+| Frontend | HTML/CSS + Tailwind browser utilities + **vanilla JS** (polling only). No React/Vue/Bootstrap |
 | DB | SQLite on tracker |
 | Chunks | **256 KB** (`shared.utils.CHUNK_SIZE`), SHA-256 per chunk + whole file |
-| Theme | `--bg-primary:#0d0d0d` `--accent:#7c3aed` Inter, cards, 12–16px radius |
+| Theme | dark charcoal neo-brutalism; teal primary, yellow warn, red danger; Space Grotesk + IBM Plex Mono; Tailwind utilities and CSS vars in `peer/static/style.css` |
 | Env | Use `.venv/` (PEP 668). Never skip BUILD ORDER; pause after each step unless told |
 | Scope | Educational demo — LAN HTTP + optional Magic Wormhole fallback; no DHT / real BT |
 
@@ -165,7 +166,7 @@ Config file: `config/nightowls.json` (or `$NIGHTOWLS_CONFIG`) — `tracker_url`,
 | GET | `/portal/export/audit.csv` | CSV download |
 | GET | `/portal/export/peers.csv` | CSV download |
 
-Portal UI is intentionally plain (not peer CRED theme). No auth — LAN demo only.
+Portal UI matches the dark Campus Connect neo-brutalist theme. No auth — LAN demo only.
 
 ---
 

@@ -1,23 +1,31 @@
-/* Bare-minimum tracker portal */
+/* Campus Connect tracker portal — dark neo-brutalist companion UI. */
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font: 14px/1.45 system-ui, sans-serif;
-  color: #111;
-  background: #f4f4f4;
+  font: 15px/1.45 "Space Grotesk", system-ui, sans-serif;
+  color: #f8f4e8;
+  background: #111;
+  background-image: radial-gradient(rgba(248,244,232,.1) 1px, transparent 1px);
+  background-size: 18px 18px;
 }
 
 .bar {
   display: flex;
   gap: 1.25rem;
   align-items: center;
-  padding: 0.65rem 1rem;
-  background: #111;
-  color: #eee;
+  padding: .7rem 1rem;
+  background: #151515;
+  border-bottom: 2px solid #f8f4e8;
+  color: #f8f4e8;
+  box-shadow: 0 4px 0 #000;
 }
+
+.bar strong { text-transform: uppercase; letter-spacing: -.03em; }
+.bar strong span { display: inline-grid; place-items: center; margin-right: .35rem; width: 1.8rem; height: 1.8rem; background: #39e6bd; border: 2px solid #000; color: #111; font: 700 .65rem "IBM Plex Mono", monospace; }
+.bar strong em { color: #39e6bd; font: 500 .75rem "IBM Plex Mono", monospace; font-style: normal; }
 
 .bar nav {
   display: flex;
@@ -25,12 +33,13 @@ body {
 }
 
 .bar a {
-  color: #ccc;
+  color: #b6b0a5;
   text-decoration: none;
 }
 
 .bar a:hover {
-  color: #fff;
+  color: #111;
+  background: #ffd459;
 }
 
 .wrap {
@@ -40,17 +49,17 @@ body {
 }
 
 h1 {
-  font-size: 1.25rem;
+  font-size: 2.2rem;
   margin: 0 0 0.35rem;
 }
 
 h2 {
-  font-size: 1.05rem;
+  font-size: 1.2rem;
   margin: 1.5rem 0 0.5rem;
 }
 
 .muted {
-  color: #555;
+  color: #b6b0a5;
   margin: 0 0 1rem;
 }
 
@@ -61,21 +70,25 @@ h2 {
 table {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
-  border: 1px solid #ccc;
+  background: #1b1b1b;
+  border: 2px solid #f8f4e8;
+  box-shadow: 4px 4px 0 #000;
 }
 
 th,
 td {
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid #555;
   padding: 0.45rem 0.55rem;
   text-align: left;
   vertical-align: middle;
 }
 
 th {
-  background: #eee;
-  font-weight: 600;
+  background: #0d0d0d;
+  color: #39e6bd;
+  font: 600 .74rem "IBM Plex Mono", monospace;
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 
 .stats {
@@ -107,21 +120,26 @@ input[type="text"],
 input[type="number"] {
   font: inherit;
   padding: 0.25rem 0.4rem;
-  border: 1px solid #bbb;
+  border: 2px solid #f8f4e8;
+  background: #111;
+  color: #f8f4e8;
   min-width: 10rem;
 }
 
 button {
   font: inherit;
   padding: 0.25rem 0.55rem;
-  border: 1px solid #888;
-  background: #fafafa;
+  border: 2px solid #111;
+  background: #39e6bd;
+  color: #111;
+  box-shadow: 3px 3px 0 #000;
   cursor: pointer;
 }
 
 button.danger {
-  border-color: #a33;
-  color: #a33;
+  background: #ff6b6b;
+  border-color: #111;
+  color: #111;
 }
 
 .flash {
@@ -132,21 +150,21 @@ button.danger {
 
 .flash li {
   padding: 0.45rem 0.6rem;
-  border: 1px solid #ccc;
-  background: #fff;
+  border: 2px solid #f8f4e8;
+  background: #1b1b1b;
   margin-bottom: 0.35rem;
 }
 
 .flash .ok {
-  border-color: #3a3;
-  color: #163;
+  border-color: #39e6bd;
+  color: #8cf3d8;
 }
 
 .flash .err {
-  border-color: #a33;
-  color: #612;
+  border-color: #ff6b6b;
+  color: #ff9b9b;
 }
 
 a {
-  color: #06c;
+  color: #8cf3d8;
 }

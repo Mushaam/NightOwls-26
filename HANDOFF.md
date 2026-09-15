@@ -1,6 +1,6 @@
 # NightOwls-26 — Build Handoff Report
 
-**Last updated:** 2026-09-13 (wormhole worldwide)  
+**Last updated:** 2026-09-15 (Campus Connect neo-brutalist UI)
 **Project:** Decentralized LAN file-sharing (BitTorrent-style tracker + peers)  
 **Workspace:** `/home/mushaam/Desktop/cc/NightOwls-26`
 
@@ -14,7 +14,7 @@ This document is the source of truth for resuming work after a context/token res
 
 ## Goal (one line)
 
-Flask tracker + Flask peer nodes that chunk files (256 KB), hash with SHA-256, exchange chunks over HTTP, and expose a dark CRED/Spotify-style UI.
+Flask tracker + Flask peer nodes that chunk files (256 KB), hash with SHA-256, exchange chunks over HTTP, and expose a dark neo-brutalist Campus Connect UI.
 
 ---
 
@@ -23,12 +23,12 @@ Flask tracker + Flask peer nodes that chunk files (256 KB), hash with SHA-256, e
 | Layer | Choice |
 |-------|--------|
 | Backend | Flask (Python) |
-| Frontend | HTML + CSS (custom, no Bootstrap); vanilla JS only for polling/progress |
+| Frontend | HTML + CSS (Tailwind browser utilities + custom CSS, no Bootstrap); vanilla JS only for polling/progress |
 | Optional | Streamlit for admin/debug only (not main UI) |
 | DB | SQLite |
 | Env | `.venv/` (required on Kali — PEP 668); `requirements.txt` pins `Flask==3.1.3` |
 
-**UI direction:** deep black/charcoal, accent `#7c3aed`, Inter via Google Fonts, card grid, CSS variables, 12–16px radius.
+**UI direction:** deep charcoal neo-brutalism; teal `#39e6bd`, yellow, and red accents; Space Grotesk + IBM Plex Mono; hard borders/offset shadows/square corners. Tailwind browser utilities supplement local CSS.
 
 ---
 
@@ -75,7 +75,7 @@ Flask tracker + Flask peer nodes that chunk files (256 KB), hash with SHA-256, e
 | 3 | Peer chunk-serving endpoint; manual P2P chunk fetch | **DONE** |
 | 4 | Peer download logic (manifest → fetch → verify → reassemble) | **DONE** |
 | 5 | Peer upload/seed logic (chunk + hash + register with tracker) | **DONE** |
-| 6 | CRED/Spotify frontend (templates + CSS) | **DONE** |
+| 6 | Campus Connect neo-brutalist frontend (templates + CSS) | **DONE** |
 | 7 | Polling progress bars (`fetch` every 1s → `/progress/<file_id>`) | **DONE** |
 | 8 | Magic Wormhole cross-network fallback + `config/nightowls.json` | **DONE** |
 
@@ -184,7 +184,7 @@ Upload on peer 6001 → browse/download on peer 6002.
 
 ## UI notes (Steps 6–7)
 
-- Theme: `--bg-primary: #0d0d0d`, `--accent: #7c3aed`, Inter, card grid, hover lift
+- Theme: `--bg-primary: #111111`, `--accent: #39e6bd`, Space Grotesk + IBM Plex Mono, hard borders/offset shadows, Tailwind utilities + local CSS fallback
 - Browse: server-rendered cards from tracker `/files`
 - Upload: drag-drop → `POST /api/upload` (multipart) → swarm `upload_file`
 - Download: page auto-starts → `POST /api/download/<id>` background thread → JS polls `/progress/<id>` every 1s
