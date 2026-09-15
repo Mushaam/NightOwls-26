@@ -1,0 +1,18 @@
+{
+  "tracker_url": "https://customs-thickness-facecloth.ngrok-free.dev",
+  "peer": {
+    "host": "0.0.0.0",
+    "port": 6001,
+    "advertise_host": "127.0.0.1",
+    "advertise_port": 6001
+  },
+  "wormhole": {
+    "enabled": true,
+    "appid": "nightowls.file-share",
+    "mailbox_url": "ws://relay.magic-wormhole.io:4000/v1",
+    "transit_helper": "tcp:transit.magic-wormhole.io:4001",
+    "direct_timeout_sec": 4,
+    "job_poll_sec": 1.0,
+    "job_timeout_sec": 90
+  }
+}

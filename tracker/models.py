@@ -65,6 +65,24 @@ def init_db(db_path: str | Path = DEFAULT_DB_PATH) -> None:
             );
 
             CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS wormhole_jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                seeder_ip TEXT NOT NULL,
+                seeder_port INTEGER NOT NULL,
+                requester_ip TEXT NOT NULL,
+                requester_port INTEGER NOT NULL,
+                file_id INTEGER NOT NULL,
+                chunk_index INTEGER NOT NULL,
+                code TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                detail TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_wh_seeder
+                ON wormhole_jobs(seeder_ip, seeder_port, status);
             """
         )
 
@@ -347,3 +365,134 @@ def peer_has_chunk(
         "chunk_index": chunk_index,
         "status": "recorded",
     }
+
+
+# ---------------------------------------------------------------------------
+# Magic Wormhole job coordination (cross-network chunk fallback)
+# ---------------------------------------------------------------------------
+
+
+def _wormhole_row(row: sqlite3.Row | None) -> dict[str, Any] | None:
+    return dict(row) if row is not None else None
+
+
+def create_wormhole_job(
+    conn: sqlite3.Connection,
+    *,
+    seeder_ip: str,
+    seeder_port: int,
+    requester_ip: str,
+    requester_port: int,
+    file_id: int,
+    chunk_index: int,
+) -> dict[str, Any]:
+    cur = conn.execute(
+        """
+        INSERT INTO wormhole_jobs (
+            seeder_ip, seeder_port, requester_ip, requester_port,
+            file_id, chunk_index, status
+        ) VALUES (?, ?, ?, ?, ?, ?, 'pending')
+        """,
+        (
+            seeder_ip,
+            int(seeder_port),
+            requester_ip,
+            int(requester_port),
+            int(file_id),
+            int(chunk_index),
+        ),
+    )
+    conn.commit()
+    return get_wormhole_job(conn, int(cur.lastrowid))
+
+
+def get_wormhole_job(conn: sqlite3.Connection, job_id: int) -> dict[str, Any] | None:
+    row = conn.execute(
+        "SELECT * FROM wormhole_jobs WHERE id = ?",
+        (int(job_id),),
+    ).fetchone()
+    return _wormhole_row(row)
+
+
+def list_wormhole_jobs(
+    conn: sqlite3.Connection,
+    *,
+    seeder_ip: str,
+    seeder_port: int,
+    status: str | None = "pending",
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    limit = max(1, min(int(limit), 100))
+    if status:
+        rows = conn.execute(
+            """
+            SELECT * FROM wormhole_jobs
+            WHERE seeder_ip = ? AND seeder_port = ? AND status = ?
+            ORDER BY id ASC
+            LIMIT ?
+            """,
+            (seeder_ip, int(seeder_port), status, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT * FROM wormhole_jobs
+            WHERE seeder_ip = ? AND seeder_port = ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (seeder_ip, int(seeder_port), limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def claim_wormhole_job(conn: sqlite3.Connection, job_id: int) -> dict[str, Any] | None:
+    """Mark a pending job as sending. Returns None if already claimed/missing."""
+    cur = conn.execute(
+        """
+        UPDATE wormhole_jobs
+        SET status = 'sending', updated_at = datetime('now')
+        WHERE id = ? AND status = 'pending'
+        """,
+        (int(job_id),),
+    )
+    conn.commit()
+    if cur.rowcount == 0:
+        return None
+    return get_wormhole_job(conn, job_id)
+
+
+def set_wormhole_code(
+    conn: sqlite3.Connection, job_id: int, code: str
+) -> dict[str, Any] | None:
+    cur = conn.execute(
+        """
+        UPDATE wormhole_jobs
+        SET code = ?, status = 'ready', updated_at = datetime('now')
+        WHERE id = ? AND status IN ('pending', 'sending')
+        """,
+        (code, int(job_id)),
+    )
+    conn.commit()
+    if cur.rowcount == 0:
+        return get_wormhole_job(conn, job_id)
+    return get_wormhole_job(conn, job_id)
+
+
+def update_wormhole_job(
+    conn: sqlite3.Connection,
+    job_id: int,
+    *,
+    status: str,
+    detail: str | None = None,
+) -> dict[str, Any] | None:
+    conn.execute(
+        """
+        UPDATE wormhole_jobs
+        SET status = ?, detail = ?, updated_at = datetime('now')
+        WHERE id = ?
+        """,
+        (status, detail, int(job_id)),
+    )
+    conn.commit()
+    return get_wormhole_job(conn, job_id)

@@ -288,6 +288,109 @@ def export_peers_csv():
     )
 
 
+# ---------------------------------------------------------------------------
+# Magic Wormhole coordination (cross-network chunk transfer)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/wormhole/jobs")
+def wormhole_create_job():
+    data = request.get_json(silent=True) or {}
+    required = (
+        "seeder_ip",
+        "seeder_port",
+        "requester_ip",
+        "requester_port",
+        "file_id",
+        "chunk_index",
+    )
+    missing = [k for k in required if k not in data]
+    if missing:
+        return jsonify({"error": f"missing fields: {', '.join(missing)}"}), 400
+    try:
+        with _conn() as conn:
+            job = models.create_wormhole_job(
+                conn,
+                seeder_ip=str(data["seeder_ip"]),
+                seeder_port=int(data["seeder_port"]),
+                requester_ip=str(data["requester_ip"]),
+                requester_port=int(data["requester_port"]),
+                file_id=int(data["file_id"]),
+                chunk_index=int(data["chunk_index"]),
+            )
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(job), 201
+
+
+@app.get("/wormhole/jobs")
+def wormhole_list_jobs():
+    seeder_ip = request.args.get("seeder_ip")
+    seeder_port = request.args.get("seeder_port", type=int)
+    if not seeder_ip or seeder_port is None:
+        return jsonify({"error": "seeder_ip and seeder_port are required"}), 400
+    status = request.args.get("status", "pending")
+    if status in ("", "any", "*"):
+        status = None
+    limit = request.args.get("limit", 20, type=int)
+    with _conn() as conn:
+        jobs = models.list_wormhole_jobs(
+            conn,
+            seeder_ip=seeder_ip,
+            seeder_port=seeder_port,
+            status=status,
+            limit=limit,
+        )
+    return jsonify(jobs)
+
+
+@app.get("/wormhole/jobs/<int:job_id>")
+def wormhole_get_job(job_id: int):
+    with _conn() as conn:
+        job = models.get_wormhole_job(conn, job_id)
+    if not job:
+        return jsonify({"error": "job not found"}), 404
+    return jsonify(job)
+
+
+@app.post("/wormhole/jobs/<int:job_id>/claim")
+def wormhole_claim_job(job_id: int):
+    with _conn() as conn:
+        job = models.claim_wormhole_job(conn, job_id)
+    if not job:
+        return jsonify({"error": "job not claimable"}), 409
+    return jsonify(job)
+
+
+@app.post("/wormhole/jobs/<int:job_id>/code")
+def wormhole_set_code(job_id: int):
+    data = request.get_json(silent=True) or {}
+    code = data.get("code")
+    if not code or not isinstance(code, str):
+        return jsonify({"error": "code is required"}), 400
+    with _conn() as conn:
+        job = models.set_wormhole_code(conn, job_id, code.strip())
+    if not job:
+        return jsonify({"error": "job not found"}), 404
+    return jsonify(job)
+
+
+@app.post("/wormhole/jobs/<int:job_id>/status")
+def wormhole_set_status(job_id: int):
+    data = request.get_json(silent=True) or {}
+    status = data.get("status")
+    if not status or not isinstance(status, str):
+        return jsonify({"error": "status is required"}), 400
+    detail = data.get("detail")
+    with _conn() as conn:
+        if not models.get_wormhole_job(conn, job_id):
+            return jsonify({"error": "job not found"}), 404
+        job = models.update_wormhole_job(
+            conn, job_id, status=status, detail=detail if detail is None else str(detail)
+        )
+    return jsonify(job)
+
+
 if __name__ == "__main__":
     create_app()
     host = os.environ.get("TRACKER_HOST", "0.0.0.0")

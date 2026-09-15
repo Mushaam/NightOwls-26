@@ -44,6 +44,65 @@ def _http_bytes(url: str, timeout: float = 15) -> bytes:
         return resp.read()
 
 
+def _try_fetch_chunk(
+    peer: dict[str, Any],
+    *,
+    file_id: int,
+    chunk_index: int,
+    expected_size: int,
+    expected_hash: str,
+    tracker_url: str,
+    peer_ip: str,
+    peer_port: int,
+    direct_timeout: float,
+    wormhole_on: bool,
+    cfg: dict[str, Any] | None,
+) -> tuple[bytes | None, str | None, list[str]]:
+    """
+    Try direct HTTP, then Magic Wormhole fallback.
+    Returns (data, from_label, errors).
+    """
+    errors: list[str] = []
+    label = f"{peer['ip']}:{peer['port']}"
+    url = f"http://{peer['ip']}:{peer['port']}/chunk/{file_id}/{chunk_index}"
+    data: bytes | None = None
+    try:
+        data = _http_bytes(url, timeout=direct_timeout)
+    except urllib.error.HTTPError as exc:
+        errors.append(f"{label} HTTP {exc.code}")
+    except urllib.error.URLError as exc:
+        errors.append(f"{label} {exc.reason}")
+
+    if data is None and wormhole_on:
+        try:
+            from peer.wormhole_xfer import fetch_chunk_via_wormhole
+
+            data = fetch_chunk_via_wormhole(
+                tracker_url,
+                peer,
+                file_id,
+                chunk_index,
+                peer_ip,
+                peer_port,
+                cfg,
+            )
+            label = f"wormhole:{peer['ip']}:{peer['port']}"
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{label} wormhole {exc}")
+            data = None
+
+    if data is None:
+        return None, None, errors
+
+    if len(data) != expected_size:
+        errors.append(f"{label} size {len(data)} != {expected_size}")
+        return None, None, errors
+    if not verify_chunk(data, expected_hash):
+        errors.append(f"{label} hash mismatch")
+        return None, None, errors
+    return data, label, errors
+
+
 def fetch_manifest(tracker_url: str, file_id: int) -> dict[str, Any]:
     meta = _http_json(f"{tracker_url.rstrip('/')}/files/{file_id}")
     if not meta or "chunk_hashes" not in meta:
@@ -195,6 +254,7 @@ def download_file(
     *,
     refresh_peers: bool = True,
     on_progress: Callable[[dict[str, Any]], None] | None = None,
+    config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Download a file from the swarm into ``store``.
@@ -202,11 +262,17 @@ def download_file(
     Steps:
       1. Fetch manifest + peer map from tracker
       2. For each missing chunk, round-robin peers that have it
+         (direct HTTP first; Magic Wormhole fallback when configured)
       3. Verify SHA-256; save; report peer_has_chunk
       4. Reassemble into complete/<file_id>/<filename>
     """
+    from shared.config import load_config, wormhole_enabled
+
     tracker_url = tracker_url.rstrip("/")
     exclude = (peer_ip, peer_port)
+    cfg = config if config is not None else load_config()
+    wormhole_on = wormhole_enabled(cfg)
+    direct_timeout = float((cfg.get("wormhole") or {}).get("direct_timeout_sec", 4))
 
     manifest = fetch_manifest(tracker_url, file_id)
     chunk_hashes: list[str] = list(manifest["chunk_hashes"])
@@ -295,24 +361,21 @@ def download_file(
 
         errors: list[str] = []
         for peer in ordered:
-            url = f"http://{peer['ip']}:{peer['port']}/chunk/{file_id}/{chunk_index}"
-            try:
-                data = _http_bytes(url)
-            except urllib.error.HTTPError as exc:
-                errors.append(f"{peer['ip']}:{peer['port']} HTTP {exc.code}")
-                continue
-            except urllib.error.URLError as exc:
-                errors.append(f"{peer['ip']}:{peer['port']} {exc.reason}")
-                continue
-
-            if len(data) != expected_size:
-                errors.append(
-                    f"{peer['ip']}:{peer['port']} size {len(data)} != {expected_size}"
-                )
-                continue
-
-            if not verify_chunk(data, expected_hash):
-                errors.append(f"{peer['ip']}:{peer['port']} hash mismatch")
+            data, from_label, peer_errors = _try_fetch_chunk(
+                peer,
+                file_id=file_id,
+                chunk_index=chunk_index,
+                expected_size=expected_size,
+                expected_hash=expected_hash,
+                tracker_url=tracker_url,
+                peer_ip=peer_ip,
+                peer_port=peer_port,
+                direct_timeout=direct_timeout,
+                wormhole_on=wormhole_on,
+                cfg=cfg,
+            )
+            errors.extend(peer_errors)
+            if data is None:
                 continue
 
             store.save_chunk(file_id, chunk_index, data)
@@ -327,7 +390,7 @@ def download_file(
             emit(
                 "chunk_ok",
                 chunk_index=chunk_index,
-                from_peer=f"{peer['ip']}:{peer['port']}",
+                from_peer=from_label,
             )
             break
 

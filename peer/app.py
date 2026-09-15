@@ -129,10 +129,27 @@ def create_app(
     peer_port: int | None = None,
     register: bool = True,
 ) -> Flask:
+    from shared.config import load_config
+
+    cfg = load_config()
+    peer_cfg = cfg.get("peer") or {}
     data = Path(data_dir or _env("PEER_DATA_DIR", str(DEFAULT_DATA)))
-    tracker = (tracker_url or _env("TRACKER_URL", "http://127.0.0.1:5000")).rstrip("/")
-    ip = peer_ip or _env("PEER_IP", "127.0.0.1")
-    port = int(peer_port if peer_port is not None else _env("PEER_PORT", "6001"))
+    tracker = (
+        tracker_url
+        or os.environ.get("TRACKER_URL")
+        or str(cfg.get("tracker_url") or "http://127.0.0.1:5000")
+    ).rstrip("/")
+    ip = (
+        peer_ip
+        or os.environ.get("PEER_IP")
+        or str(peer_cfg.get("advertise_host") or "127.0.0.1")
+    )
+    if peer_port is not None:
+        port = int(peer_port)
+    elif os.environ.get("PEER_PORT"):
+        port = int(os.environ["PEER_PORT"])
+    else:
+        port = int(peer_cfg.get("advertise_port") or peer_cfg.get("port") or 6001)
 
     store = ChunkStore(data)
     inventory = LocalInventory(data, store)
@@ -153,11 +170,15 @@ def create_app(
         LIBRARY_VERIFY=verify_summary,
         DOWNLOADS={},
         UPLOAD_TMP=data / "_uploads",
+        NIGHTOWLS_CFG=cfg,
     )
     app.config["UPLOAD_TMP"].mkdir(parents=True, exist_ok=True)
 
     if register:
         _register_with_tracker(tracker, ip, port)
+        from peer.wormhole_worker import start_wormhole_seeder
+
+        start_wormhole_seeder(app)
 
     return app
 
@@ -196,6 +217,8 @@ def _enrich_files(files: list[dict]) -> list[dict]:
 
 @app.get("/health")
 def health():
+    cfg = app.config.get("NIGHTOWLS_CFG") or {}
+    wh = cfg.get("wormhole") or {}
     return jsonify(
         {
             "status": "ok",
@@ -203,6 +226,7 @@ def health():
             "peer_port": app.config["PEER_PORT"],
             "tracker_url": app.config["TRACKER_URL"],
             "data_dir": str(app.config["DATA_DIR"]),
+            "wormhole_enabled": bool(wh.get("enabled", False)),
         }
     )
 
@@ -416,6 +440,7 @@ def _run_download(file_id: int) -> None:
             peer_ip=app.config["PEER_IP"],
             peer_port=app.config["PEER_PORT"],
             on_progress=on_progress,
+            config=app.config.get("NIGHTOWLS_CFG"),
         )
         _register_library(result, source="download")
         _set_progress(
@@ -690,7 +715,11 @@ def api_library_delete(file_id: int):
 
 
 if __name__ == "__main__":
+    from shared.config import load_config
+
     create_app()
-    host = _env("PEER_HOST", "0.0.0.0")
+    cfg = app.config.get("NIGHTOWLS_CFG") or load_config()
+    peer_cfg = cfg.get("peer") or {}
+    host = os.environ.get("PEER_HOST") or str(peer_cfg.get("host") or "0.0.0.0")
     port = int(app.config["PEER_PORT"])
     app.run(host=host, port=port, debug=False, threaded=True)
