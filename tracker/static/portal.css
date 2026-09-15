@@ -6,9 +6,9 @@
 body {
   margin: 0;
   font: 15px/1.45 "Space Grotesk", system-ui, sans-serif;
-  color: #f8f4e8;
-  background: #111;
-  background-image: radial-gradient(rgba(248,244,232,.1) 1px, transparent 1px);
+  color: #fffdf5;
+  background: #090a0a;
+  background-image: radial-gradient(rgba(255,253,245,.15) 1px, transparent 1px);
   background-size: 18px 18px;
 }
 
@@ -17,15 +17,15 @@ body {
   gap: 1.25rem;
   align-items: center;
   padding: .7rem 1rem;
-  background: #151515;
+  background: #101111;
   border-bottom: 2px solid #f8f4e8;
   color: #f8f4e8;
   box-shadow: 0 4px 0 #000;
 }
 
 .bar strong { text-transform: uppercase; letter-spacing: -.03em; }
-.bar strong span { display: inline-grid; place-items: center; margin-right: .35rem; width: 1.8rem; height: 1.8rem; background: #39e6bd; border: 2px solid #000; color: #111; font: 700 .65rem "IBM Plex Mono", monospace; }
-.bar strong em { color: #39e6bd; font: 500 .75rem "IBM Plex Mono", monospace; font-style: normal; }
+.bar strong span { display: inline-grid; place-items: center; margin-right: .35rem; width: 1.8rem; height: 1.8rem; background: #52f5cb; border: 2px solid #000; color: #111; font: 700 .65rem "IBM Plex Mono", monospace; }
+.bar strong em { color: #52f5cb; font: 500 .75rem "IBM Plex Mono", monospace; font-style: normal; }
 
 .bar nav {
   display: flex;
@@ -39,7 +39,7 @@ body {
 
 .bar a:hover {
   color: #111;
-  background: #ffd459;
+  background: #ffe16a;
 }
 
 .wrap {
@@ -70,7 +70,7 @@ h2 {
 table {
   width: 100%;
   border-collapse: collapse;
-  background: #1b1b1b;
+  background: #151717;
   border: 2px solid #f8f4e8;
   box-shadow: 4px 4px 0 #000;
 }
@@ -85,7 +85,7 @@ td {
 
 th {
   background: #0d0d0d;
-  color: #39e6bd;
+  color: #52f5cb;
   font: 600 .74rem "IBM Plex Mono", monospace;
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -121,8 +121,8 @@ input[type="number"] {
   font: inherit;
   padding: 0.25rem 0.4rem;
   border: 2px solid #f8f4e8;
-  background: #111;
-  color: #f8f4e8;
+  background: #090a0a;
+  color: #fffdf5;
   min-width: 10rem;
 }
 
@@ -130,7 +130,7 @@ button {
   font: inherit;
   padding: 0.25rem 0.55rem;
   border: 2px solid #111;
-  background: #39e6bd;
+  background: #52f5cb;
   color: #111;
   box-shadow: 3px 3px 0 #000;
   cursor: pointer;
@@ -156,8 +156,8 @@ button.danger {
 }
 
 .flash .ok {
-  border-color: #39e6bd;
-  color: #8cf3d8;
+  border-color: #52f5cb;
+  color: #a7ffe8;
 }
 
 .flash .err {
@@ -166,5 +166,5 @@ button.danger {
 }
 
 a {
-  color: #8cf3d8;
+  color: #a7ffe8;
 }
